@@ -22,6 +22,8 @@ var Clock = require('clock').Clock;
 //
 var readTempAndSaveMonitorIntervalSecs = 3;
 
+
+
 //
 // Class Extensions (prototypes)
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -41,17 +43,6 @@ Pin.prototype.blip = function() {
 };
 
 
-/*
-function initStorage() {
-  try {
-    fs.unlink(temperatureStorageFName);
-  } catch (e) {
-    // Swallow
-  }  
-}
-*/
-
-
 //
 // Storage class - saves the temperature readings to storage
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -67,9 +58,6 @@ var Storage = function() {
     temps: []
   };
 };
-
-/*
-    */
 
 Storage.prototype.reset = function() {
   var result = 'ok';
@@ -110,12 +98,82 @@ Storage.prototype.addReading = function(reading) {
 
 
 
+
 //
-// Main program
+// Monitoring
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+function startMonitoring() {
+  digitalWrite(LED3, 1);
+  monitorInterval = setInterval(readTempsAndSave, readTempAndSaveMonitorIntervalSecs * 1000);
+}
+
+function stopMonitoring() {
+  digitalWrite(LED3, 0);
+  clearInterval(monitorInterval);
+}
+
+//
+// Return the currently stored monitoring data
+//
+function getMonitoringData() {
+  return storage.read();
+}
+
+function resetMonitoringData() {
+  return storage.reset();
+}
+
+//
+// General functions
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
 
+function readTempsAndSave() {
+  var reading = {
+    time: getDate().valueOf(),
+    reading: {
+      internal: '' + 5,
+      external: '' + -1
+    }
+  };
+  
+  storage.addReading(reading);
+  storage.save();
+}
+  
 
+function setDate(unixDate) {
+  clk.setClock(unixDate);
+}
+
+//
+// Returns a date object
+//
+function getDate() {
+  return clk.getDate();
+}
+
+
+function button1Change() {
+  //
+  // Only handle "buttonDown" state
+  //
+  if (digitalRead(BTN1) == 1) {
+    
+    if (monitorInterval) {
+      //
+      // Turn off
+      //
+      stopMonitoring();
+    } else {
+      //
+      // Turn on
+      //
+      startMonitoring();
+    }
+  }
+}
 
 //
 // Stuff to do on power up
@@ -139,53 +197,25 @@ function perfTest() {
   }
 }
 
-function startMonitoring() {
-  
-  function readTempsAndSave() {
-    var reading = {
-      time: getDate(),
-      reading: {
-        internal: 5,
-        external: -1 
-      }
-    };
-    
-    storage.addReading(reading);
-    storage.save();
-  }
-  
-  monitorInterval = setInterval(readTempsAndSave, readTempAndSaveMonitorIntervalSecs * 1000);
-}
-
-function stopMonitoring() {
-  clearInterval(monitorInterval);
-}
-
-function setDate(unixDate) {
-  clk.setClock(unixDate);
-}
-
 //
-// Returns a date object
+// Main program
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
-function getDate() {
-  return clk.getDate();
-}
 
 
 //
-// Return the currently stored monitoring data
+// Program variables
 //
-function getMonitoringData() {
-  return storage.read();
-}
-
-function resetMonitoringData() {
-  return storage.reset();
-}
-
 var storage = new Storage();
 var monitorInterval;
 var clk = new Clock(Date.now());
+
+
+
+//
+// Main button turns it on and off
+//
+setWatch(button1Change, BTN1, true);
+
 
 console.log(getDate().toString() + ' started up...');
