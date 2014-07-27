@@ -14,13 +14,13 @@
 //
 // Requires
 //
-
+var Clock = require('clock').Clock;
 
 
 //
 // Program constants
 //
-
+var readTempAndSaveMonitorIntervalSecs = 3;
 
 //
 // Class Extensions (prototypes)
@@ -37,7 +37,7 @@ Pin.prototype.blip = function() {
   digitalWrite(self, 1);
   setTimeout(function() {
     digitalWrite(self, 0);
-  }, 300);
+  }, 500);
 };
 
 
@@ -68,6 +68,20 @@ var Storage = function() {
   };
 };
 
+/*
+    */
+
+Storage.prototype.reset = function() {
+  var result = 'ok';
+  try {
+    fs.unlink(this.temperatureStorageFName);
+  } catch(e) {
+    // Swallow
+    result = 'err: '+  e;
+  }
+  return result;
+};
+
 Storage.prototype.save = function() {
   var strData = JSON.stringify(this.data);
   fs.writeFile(this.temperatureStorageFName, strData);
@@ -76,8 +90,12 @@ Storage.prototype.save = function() {
 
 
 Storage.prototype.read = function() {
-  var data = fs.readFile(this.temperatureStorageFName);
-  var result = JSON.parse(data);
+  var storedData = fs.readFile(this.temperatureStorageFName);
+  var result = JSON.parse(storedData);
+  
+  if (!result) {
+    console.log('(error) couldn\'t parse: ' + storedData);
+  }
   return result;
 };
 
@@ -87,6 +105,7 @@ Storage.prototype.addReading = function(reading) {
     // Zap the oldest one
   }
   this.data.temps.push(reading);
+  console.log('added: ', reading);
 };
 
 
@@ -120,4 +139,53 @@ function perfTest() {
   }
 }
 
-console.log('Startup Complete!');
+function startMonitoring() {
+  
+  function readTempsAndSave() {
+    var reading = {
+      time: getDate(),
+      reading: {
+        internal: 5,
+        external: -1 
+      }
+    };
+    
+    storage.addReading(reading);
+    storage.save();
+  }
+  
+  monitorInterval = setInterval(readTempsAndSave, readTempAndSaveMonitorIntervalSecs * 1000);
+}
+
+function stopMonitoring() {
+  clearInterval(monitorInterval);
+}
+
+function setDate(unixDate) {
+  clk.setClock(unixDate);
+}
+
+//
+// Returns a date object
+//
+function getDate() {
+  return clk.getDate();
+}
+
+
+//
+// Return the currently stored monitoring data
+//
+function getMonitoringData() {
+  return storage.read();
+}
+
+function resetMonitoringData() {
+  return storage.reset();
+}
+
+var storage = new Storage();
+var monitorInterval;
+var clk = new Clock(Date.now());
+
+console.log(getDate().toString() + ' started up...');
