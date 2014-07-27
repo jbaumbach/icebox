@@ -11,6 +11,91 @@
   
 */
 
+//
+// Requires
+//
+
+
+
+//
+// Program constants
+//
+
+
+//
+// Class Extensions (prototypes)
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+
+//
+// Briefly blink an LED
+//
+// Example:  LED2.blip();    // blip the green LED
+//
+Pin.prototype.blip = function() {
+  var self = this;
+  digitalWrite(self, 1);
+  setTimeout(function() {
+    digitalWrite(self, 0);
+  }, 300);
+};
+
+
+/*
+function initStorage() {
+  try {
+    fs.unlink(temperatureStorageFName);
+  } catch (e) {
+    // Swallow
+  }  
+}
+*/
+
+
+//
+// Storage class - saves the temperature readings to storage
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+
+var Storage = function() {
+  this.temperatureStorageFName = 'ibox-temps.json';
+  this.maxReadings = 512;
+  this.data = {
+    info: {
+      nop: 'not implemented yet'
+    },
+    temps: []
+  };
+};
+
+Storage.prototype.save = function() {
+  var strData = JSON.stringify(this.data);
+  fs.writeFile(this.temperatureStorageFName, strData);
+  LED2.blip();
+};
+
+
+Storage.prototype.read = function() {
+  var data = fs.readFile(this.temperatureStorageFName);
+  var result = JSON.parse(data);
+  return result;
+};
+
+
+Storage.prototype.addReading = function(reading) {
+  if (this.data.temps.length > maxReadings) {
+    // Zap the oldest one
+  }
+  this.data.temps.push(reading);
+};
+
+
+
+//
+// Main program
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+
 
 
 //
