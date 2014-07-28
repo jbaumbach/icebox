@@ -42,6 +42,10 @@ Pin.prototype.blip = function() {
   }, 500);
 };
 
+var trunc = function(x) {
+  return x < 0 ? Math.ceil(x) : Math.floor(x);
+};
+
 
 //
 // Storage class - saves the temperature readings to storage
@@ -49,20 +53,18 @@ Pin.prototype.blip = function() {
 //
 
 var Storage = function() {
-  this.temperatureStorageFName = 'ibox-temps.json';
-  this.maxReadings = 512;
-  this.data = {
-    info: {
-      nop: 'not implemented yet'
-    },
-    temps: []
+  this.temperatureStorageFName = 'ibox-temps-[token].json';
+  this.maxReadingsPerPage = 24;
+  this.info = {
   };
+  this.temps = [];
 };
 
 Storage.prototype.reset = function() {
   var result = 'ok';
+  var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
   try {
-    fs.unlink(this.temperatureStorageFName);
+    fs.unlink(infoFName);
   } catch(e) {
     // Swallow
     result = 'err: '+  e;
@@ -71,14 +73,25 @@ Storage.prototype.reset = function() {
 };
 
 Storage.prototype.save = function() {
-  var strData = JSON.stringify(this.data);
-  fs.writeFile(this.temperatureStorageFName, strData);
+  var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
+  // console.log('writing to file: ' + infoFName + ' data ', this.info);
+  fs.writeFile(infoFName, JSON.stringify(this.info));
+
+  var page = trunc(this.info.totalItems / this.maxReadingsPerPage);
+  var strData = JSON.stringify(this.temps);
+  var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
+  // console.log('writing to file: ' + dataFName + ' ' + this.temps.length + ' items ' + strData);
+  fs.writeFile(dataFName, strData);
   LED2.blip();
 };
 
 
-Storage.prototype.read = function() {
-  var storedData = fs.readFile(this.temperatureStorageFName);
+Storage.prototype.readSummary = function() {
+  var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
+  console.log('reading from: ' + infoFName);
+  
+  var storedData = fs.readFile(infoFName);
+  console.log('read data: ', storedData);
   var result = JSON.parse(storedData);
   
   if (!result) {
@@ -87,13 +100,29 @@ Storage.prototype.read = function() {
   return result;
 };
 
+Storage.prototype.readPage = function(pageNo) {
+  var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
+  var page = fs.readFile(dataFName);
+  var result = JSON.parse(page);
+  
+  if (!result) {
+    console.log('(error) couldn\'t parse: ' + page);
+  }
+  return result;
+};
+
+
 
 Storage.prototype.addReading = function(reading) {
-  if (this.data.temps.length > maxReadings) {
-    // Zap the oldest one
+  if (this.temps.length >= this.maxReadingsPerPage) {
+    this.save();
+    this.temps = [];
   }
-  this.data.temps.push(reading);
-  console.log('added: ', reading);
+  
+  this.info.totalItems = (this.info.totalItems ? this.info.totalItems + 1 : 1);
+  this.temps.push(reading);
+  console.log('have total items: ', this.info.totalItems);
+  LED1.blip();
 };
 
 
@@ -111,18 +140,25 @@ function startMonitoring() {
 function stopMonitoring() {
   digitalWrite(LED3, 0);
   clearInterval(monitorInterval);
+  storage.save();
 }
 
 //
 // Return the currently stored monitoring data
 //
-function getMonitoringData() {
-  return storage.read();
-}
-
 function resetMonitoringData() {
   return storage.reset();
 }
+
+function getMonitoringDataSummary() {
+  return storage.readSummary();
+}
+
+function getMonitoringDataPage(pageNo) {
+  var s = storage.readPage(pageNo);
+  return s;
+}
+
 
 //
 // General functions
@@ -131,7 +167,7 @@ function resetMonitoringData() {
 
 function readTempsAndSave() {
   var reading = {
-    time: getDate().valueOf(),
+    time: getDate().toString(),
     reading: {
       internal: '' + 5,
       external: '' + -1
@@ -139,7 +175,6 @@ function readTempsAndSave() {
   };
   
   storage.addReading(reading);
-  storage.save();
 }
   
 
@@ -183,7 +218,12 @@ function onInit() {
   setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
-  return 'Boo freakin\' ya!';
+
+  //
+  // Main button turns it on and off
+  //
+  setWatch(button1Change, BTN1, true);
+
 }
 
 //
@@ -209,13 +249,6 @@ function perfTest() {
 var storage = new Storage();
 var monitorInterval;
 var clk = new Clock(Date.now());
-
-
-
-//
-// Main button turns it on and off
-//
-setWatch(button1Change, BTN1, true);
 
 
 console.log(getDate().toString() + ' started up...');
