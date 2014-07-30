@@ -1,5 +1,7 @@
 /*
-  Ice Box 0.1 - Espruino
+  Ice Box 0.2 - Espruino
+  
+  Edited: 7/29/2014 10:04 PM
   
   Todo: Open source this guy with GPL
 
@@ -48,6 +50,27 @@ var trunc = function(x) {
 
 
 //
+// Log class - handle logging
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+var Log = function() {
+  this.logFileName = 'ibox-log.txt';
+};
+
+Log.prototype.log = function(msg) {
+  // todo: figure out how to convert an object to a string, like node's util.inspect()
+  var logStr = getDate().toString() + ': ' + msg;
+  console.log(logStr);
+  fs.appendFile(this.logFileName, logStr);
+};
+
+Log.prototype.clear = function() {
+  fs.unlink(this.logFileName);
+  return 'ok';
+};
+
+
+//
 // Storage class - saves the temperature readings to storage
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
@@ -61,6 +84,7 @@ var Storage = function() {
 };
 
 Storage.prototype.reset = function() {
+  log.log('reseting storage');
   var result = 'ok';
   var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
   try {
@@ -73,16 +97,22 @@ Storage.prototype.reset = function() {
 };
 
 Storage.prototype.save = function() {
-  var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
-  // console.log('writing to file: ' + infoFName + ' data ', this.info);
-  fs.writeFile(infoFName, JSON.stringify(this.info));
-
-  var page = trunc(this.info.totalItems / this.maxReadingsPerPage);
-  var strData = JSON.stringify(this.temps);
-  var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
-  // console.log('writing to file: ' + dataFName + ' ' + this.temps.length + ' items ' + strData);
-  fs.writeFile(dataFName, strData);
-  LED2.blip();
+  if (this.info.totalItems > 0) {
+    log.log('saving storage: start');
+  
+    var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
+    fs.writeFile(infoFName, JSON.stringify(this.info));
+  
+    var page = trunc((this.info.totalItems - 1) / this.maxReadingsPerPage);
+    var strData = JSON.stringify(this.temps);
+    var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
+    fs.writeFile(dataFName, strData);
+    
+    LED2.blip();
+    log.log('saving storage: done. page = ' + page);
+  } else {
+    log.log('not saving: no items');
+  }
 };
 
 
@@ -114,6 +144,12 @@ Storage.prototype.readPage = function(pageNo) {
 
 
 Storage.prototype.addReading = function(reading) {
+  
+  if (!clockStatus.set && !clockStatus.warned) {
+    log.log('(warning) adding readings and date is not set!');
+    clockStatus.warned = true;
+  }
+  
   if (this.temps.length >= this.maxReadingsPerPage) {
     this.save();
     this.temps = [];
@@ -121,7 +157,7 @@ Storage.prototype.addReading = function(reading) {
   
   this.info.totalItems = (this.info.totalItems ? this.info.totalItems + 1 : 1);
   this.temps.push(reading);
-  console.log('have total items: ', this.info.totalItems);
+  log.log('added reading, have total items: ' + this.info.totalItems);
   LED1.blip();
 };
 
@@ -180,6 +216,8 @@ function readTempsAndSave() {
 
 function setDate(unixDate) {
   clk.setClock(unixDate);
+  log.log('set date to: ' + unixDate + ' (' + clk.getDate().toString() + ')');
+  clockStatus.set = true;
 }
 
 //
@@ -201,11 +239,13 @@ function button1Change() {
       // Turn off
       //
       stopMonitoring();
+      log.log('button click: stop monitoring');
     } else {
       //
       // Turn on
       //
       startMonitoring();
+      log.log('button click: start monitoring');
     }
   }
 }
@@ -214,6 +254,8 @@ function button1Change() {
 // Stuff to do on power up
 //
 function onInit() {
+  log.log('onInit() running');
+  
   digitalWrite([LED1,LED2,LED3],0b100);
   setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
@@ -249,6 +291,15 @@ function perfTest() {
 var storage = new Storage();
 var monitorInterval;
 var clk = new Clock(Date.now());
+var log = new Log();
+var clockStatus = {
+  set: false,
+  warned: false
+};
 
-
-console.log(getDate().toString() + ' started up...');
+log.log('----------------------------------------------');
+log.log('Starting up...');
+log.log('Info: ');
+log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
+log.log('----------------------------------------------');
+        
