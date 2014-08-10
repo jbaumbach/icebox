@@ -44,6 +44,51 @@ Pin.prototype.blip = function() {
   }, 500);
 };
 
+// LED1.slowBlink()
+
+Pin.prototype.slowBlink = function(times) {
+  var locals = {
+    self: this,
+    hello: 'there'
+  };
+  
+  times = times || 1;
+  
+  // var interval = undefined;
+  function pwm(brightness, Hz) {
+    if ((typeof locals.interval) !== "undefined") {
+      //console.log('is defined, so clearing... (' + locals.hello + ')');
+      clearInterval(locals.interval);
+      //locals.self.reset();
+    }
+    locals.interval = setInterval(function() {
+      digitalPulse(locals.self, 1, brightness * (1000/Hz));
+    }, 1000/Hz);
+  }
+  
+  var angle = (Math.PI * 1.5), loop = 0;
+  var changeHz = 20;
+  var changeStep = (Math.PI * 2) / changeHz;  // should do full rotation each second
+  var range = times * changeHz;
+  
+  function setLightLevel() {
+    var level = Math.abs((1 + Math.sin(angle)) / 2);
+    console.log(angle + ', setting level to: ' + level);
+    if (loop < range) {  // range
+      angle += changeStep;
+      loop++;
+      pwm(level, 50);
+      setTimeout(setLightLevel, 1000 / changeHz);
+    } else {
+      clearInterval(locals.interval);
+    }
+  }
+  
+  setLightLevel();
+  // pwm(0.5, 50);
+};
+
+
 var trunc = function(x) {
   return x < 0 ? Math.ceil(x) : Math.floor(x);
 };
