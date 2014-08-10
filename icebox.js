@@ -48,39 +48,39 @@ Pin.prototype.blip = function() {
 
 Pin.prototype.slowBlink = function(times) {
   var locals = {
-    self: this,
-    hello: 'there'
+    self: this
   };
   
   times = times || 1;
+  var Hz = 50;
+  var blinkDurationSecs = 2;
+  var angle = (Math.PI * 1.5), loop = 0;
+  var changeHz = 40;
+  var changeStep = (Math.PI * blinkDurationSecs) / (changeHz * 2);  // should do full rotation in time period
+  var range = times * (changeHz * blinkDurationSecs);
   
-  // var interval = undefined;
-  function pwm(brightness, Hz) {
-    if ((typeof locals.interval) !== "undefined") {
-      //console.log('is defined, so clearing... (' + locals.hello + ')');
-      clearInterval(locals.interval);
-      //locals.self.reset();
+  
+  function pwm() {
+    var pulseTime = locals.brightness * (1000/Hz);
+    if (pulseTime >  0) {
+      digitalPulse(locals.self, 1, pulseTime);
     }
-    locals.interval = setInterval(function() {
-      digitalPulse(locals.self, 1, brightness * (1000/Hz));
-    }, 1000/Hz);
+    locals.interval = setTimeout(pwm, 1000/Hz);
   }
   
-  var angle = (Math.PI * 1.5), loop = 0;
-  var changeHz = 20;
-  var changeStep = (Math.PI * 2) / changeHz;  // should do full rotation each second
-  var range = times * changeHz;
-  
   function setLightLevel() {
-    var level = Math.abs((1 + Math.sin(angle)) / 2);
-    console.log(angle + ', setting level to: ' + level);
+    locals.brightness = Math.abs((1 + Math.sin(angle)) / 2);
     if (loop < range) {  // range
+      if ((typeof locals.interval) === "undefined") {
+        pwm(9999, 50);
+      }
+      
       angle += changeStep;
       loop++;
-      pwm(level, 50);
-      setTimeout(setLightLevel, 1000 / changeHz);
+      //pwm(level, 50);
+      setTimeout(setLightLevel, 1000 / changeHz); // wait 50 ms, so 20 times a sec
     } else {
-      clearInterval(locals.interval);
+      clearTimeout(locals.interval);
     }
   }
   
@@ -347,4 +347,6 @@ log.log('Starting up...');
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
 log.log('----------------------------------------------');
+        
+-----------------------------');
         
