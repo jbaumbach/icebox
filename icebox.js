@@ -1,7 +1,7 @@
 /*
-  Ice Box 0.2 - Espruino
+  Ice Box 0.3 - Espruino
   
-  Edited: 7/29/2014 10:04 PM
+  Edited: 8/12/2014 10:04 PM
   
   Todo: Open source this guy with GPL
 
@@ -11,18 +11,36 @@
   LED2: green
   LED3: blue
   
+  
+  Status Lights
+  =-=-=-=-=-=-=
+  Heater on: red
+  System on: blue
+  Taking reading: green
 */
+
+//
+// Program global vars/constants
+//
+var readTempAndSaveMonitorIntervalSecs = 5;
+var tempSensorWire = A1;
+var minTempWhileCooling = 0.83333;       // 33.5 degrees fahrenheit 
+var hysteresisTolerance = 0.75;          // degrees celcius
+
+//
+// Test mode.  Set to true to mock the temperature setting and simulate it dropping
+//
+var testMode = false;
+var testModeTemperature = minTempWhileCooling + 0.76;
+var testModeIncrements = 0.25;
+
 
 //
 // Requires
 //
 var Clock = require('clock').Clock;
-
-
-//
-// Program constants
-//
-var readTempAndSaveMonitorIntervalSecs = 3;
+var ow = new OneWire(tempSensorWire);
+var sensor = require("DS18B20").connect(ow);
 
 
 
@@ -151,7 +169,6 @@ Storage.prototype.save = function() {
     var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
     fs.writeFile(dataFName, strData);
     
-    LED2.blip();
     log.log('saving storage: done. page = ' + page);
   } else {
     log.log('not saving: no items');
@@ -201,7 +218,6 @@ Storage.prototype.addReading = function(reading) {
   this.info.totalItems = (this.info.totalItems ? this.info.totalItems + 1 : 1);
   this.temps.push(reading);
   log.log('added reading, have total items: ' + this.info.totalItems);
-  LED1.blip();
 };
 
 
@@ -223,7 +239,7 @@ function stopMonitoring() {
 }
 
 //
-// Return the currently stored monitoring data
+// Stored monitoring data
 //
 function resetMonitoringData() {
   return storage.reset();
@@ -245,15 +261,39 @@ function getMonitoringDataPage(pageNo) {
 //
 
 function readTempsAndSave() {
+  var currentTemp;
+  if (testMode) {
+    if (heaterIsOn) {
+      testModeTemperature += testModeIncrements;
+    } else {
+      testModeTemperature -= testModeIncrements;
+    }
+    currentTemp = testModeTemperature;
+  } else {
+    currentTemp = sensor.getTemp();
+  }
+  
+  if (currentTemp < minTempWhileCooling - hysteresisTolerance) {
+    setHeater(true);
+    log.log('turned heater on, temp is: ' + currentTemp);
+  }
+  
+  if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
+    setHeater(false);
+    log.log('turned heater false, temp is: ' + currentTemp);
+  }
+
   var reading = {
     time: getDate().toString(),
     reading: {
-      internal: '' + 5,
-      external: '' + -1
+      internal: currentTemp,
+      heaterIsOn: heaterIsOn
     }
   };
-  
+  console.log(reading);
   storage.addReading(reading);
+  
+  LED2.blip();
 }
   
 
@@ -293,6 +333,15 @@ function button1Change() {
   }
 }
 
+// Turn the heater on or off (depending on the value of isOn)
+// Also turns the red LED on and off as an indicator
+function setHeater(isOn) {
+  heaterIsOn = isOn;
+  digitalWrite(LED1, isOn);
+  digitalWrite(A0, !isOn); // 0 turns the relay on, 1 turns it off
+}
+
+
 //
 // Stuff to do on power up
 //
@@ -303,6 +352,9 @@ function onInit() {
   setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
+
+  // get the first bad reading out of the way
+  sensor.getTemp();
 
   //
   // Main button turns it on and off
@@ -339,14 +391,16 @@ var clockStatus = {
   set: false,
   warned: false
 };
+var heaterIsOn = false;
 
 log.log('----------------------------------------------');
 log.log('Starting up...');
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
+log.log(' * min air temperature (celcius): ' + minTempWhileCooling);
+if (testMode) {
+  log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
+}
 log.log('----------------------------------------------');
         
-
-        
------------------------------');
-        
+// eof
