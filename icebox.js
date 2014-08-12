@@ -22,7 +22,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.2';
+var programVersion = '0.3.3';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempWhileCooling = 0.83333;       // 33.5 degrees fahrenheit 
 var hysteresisTolerance = 0.75;          // degrees celcius
@@ -40,8 +40,8 @@ var tempSensorWire = A1;
 // Test mode.  Set to true to mock the temperature setting and simulate it dropping
 //
 var testMode = false;
-var testModeTemperature = minTempWhileCooling + 0.76;
-var testModeIncrements = 0.25;
+var testModeIncrements = hysteresisTolerance / 3;
+var testModeTemperature = minTempWhileCooling;
 
 
 //
