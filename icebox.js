@@ -22,7 +22,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.1';
+var programVersion = '0.3.2';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempWhileCooling = 0.83333;       // 33.5 degrees fahrenheit 
 var hysteresisTolerance = 0.75;          // degrees celcius
@@ -282,13 +282,17 @@ function readTempsAndSave() {
     currentTemp = sensor.getTemp();
   }
   
-  if (currentTemp < minTempWhileCooling - hysteresisTolerance) {
-    log.log('turned heater on, temp is: ' + currentTemp);
-    setHeater(true);
-  }
-  
-  if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
-    log.log('turned heater false, temp is: ' + currentTemp);
+  if (currentTemp) {
+    if (currentTemp < minTempWhileCooling - hysteresisTolerance) {
+      log.log('turned heater on, temp is: ' + currentTemp);
+      setHeater(true);
+    }
+    
+    if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
+      log.log('turned heater off, temp is: ' + currentTemp);
+      setHeater(false);
+    }
+  } else {
     setHeater(false);
   }
 
@@ -370,6 +374,12 @@ function onInit() {
   //
   setWatch(button1Change, BTN1, true);
 
+}
+
+function clearAll() {
+  storage.reset();
+  log.clear();
+  return 'ok';
 }
 
 //
