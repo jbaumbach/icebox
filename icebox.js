@@ -1,7 +1,7 @@
 /*
-  Ice Box 0.3 - Espruino
+  Ice Box - Espruino
   
-  Edited: 8/12/2014 10:04 PM
+  Edited: 8/12/2014 10:04 PM JB
   
   Todo: Open source this guy with GPL
 
@@ -22,10 +22,19 @@
 //
 // Program global vars/constants
 //
+var programVersion = '0.3.1';
 var readTempAndSaveMonitorIntervalSecs = 5;
-var tempSensorWire = A1;
 var minTempWhileCooling = 0.83333;       // 33.5 degrees fahrenheit 
 var hysteresisTolerance = 0.75;          // degrees celcius
+
+//
+// Pins
+//
+var RedLED = LED1;
+var GreenLED = LED2;
+var BlueLED = LED3;
+var RelayWire = A0;
+var tempSensorWire = A1;
 
 //
 // Test mode.  Set to true to mock the temperature setting and simulate it dropping
@@ -120,7 +129,7 @@ var Log = function() {
 
 Log.prototype.log = function(msg) {
   // todo: figure out how to convert an object to a string, like node's util.inspect()
-  var logStr = getDate().toString() + ': ' + msg;
+  var logStr = getDate().toString() + ': ' + msg + '\n';
   console.log(logStr);
   fs.appendFile(this.logFileName, logStr);
 };
@@ -228,12 +237,12 @@ Storage.prototype.addReading = function(reading) {
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
 function startMonitoring() {
-  digitalWrite(LED3, 1);
+  digitalWrite(BlueLED, 1);
   monitorInterval = setInterval(readTempsAndSave, readTempAndSaveMonitorIntervalSecs * 1000);
 }
 
 function stopMonitoring() {
-  digitalWrite(LED3, 0);
+  digitalWrite(BlueLED, 0);
   clearInterval(monitorInterval);
   storage.save();
 }
@@ -274,13 +283,13 @@ function readTempsAndSave() {
   }
   
   if (currentTemp < minTempWhileCooling - hysteresisTolerance) {
-    setHeater(true);
     log.log('turned heater on, temp is: ' + currentTemp);
+    setHeater(true);
   }
   
   if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
-    setHeater(false);
     log.log('turned heater false, temp is: ' + currentTemp);
+    setHeater(false);
   }
 
   var reading = {
@@ -293,7 +302,7 @@ function readTempsAndSave() {
   console.log(reading);
   storage.addReading(reading);
   
-  LED2.blip();
+  GreenLED.blip();
 }
   
 
@@ -337,8 +346,8 @@ function button1Change() {
 // Also turns the red LED on and off as an indicator
 function setHeater(isOn) {
   heaterIsOn = isOn;
-  digitalWrite(LED1, isOn);
-  digitalWrite(A0, !isOn); // 0 turns the relay on, 1 turns it off
+  digitalWrite(RedLED, isOn);
+  digitalWrite(RelayWire, !isOn); // 0 turns the relay on, 1 turns it off
 }
 
 
@@ -393,8 +402,8 @@ var clockStatus = {
 };
 var heaterIsOn = false;
 
-log.log('----------------------------------------------');
-log.log('Starting up...');
+log.log('\n\n----------------------------------------------');
+log.log('Starting up, version: ' + programVersion);
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
 log.log(' * min air temperature (celcius): ' + minTempWhileCooling);
