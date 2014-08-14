@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/12/2014 JB
+  Edited: 8/14/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -17,6 +17,10 @@
   Heater on: red
   System on: blue
   Taking reading: green
+  
+  Getting a date from local computer for Espruino - run in node REPL mode and paste in window:
+  > 'setDate(' + new Date().valueOf() + ')'
+  
 */
 
 //
@@ -25,7 +29,7 @@
 var programVersion = '0.3.5';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempWhileCooling = 0.50;       // degrees celcius
-var hysteresisTolerance = 0.50;       // degrees celcius
+var hysteresisTolerance = 0.75;       // degrees celcius
 
 //
 // Pins
@@ -39,7 +43,7 @@ var tempSensorWire = A1;
 //
 // Test mode.  Set to true to mock the temperature setting and simulate it dropping
 //
-var testMode = true;
+var testMode = false;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = minTempWhileCooling;
 
