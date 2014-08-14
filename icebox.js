@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/12/2014 10:04 PM JB
+  Edited: 8/12/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -22,10 +22,10 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.3';
+var programVersion = '0.3.5';
 var readTempAndSaveMonitorIntervalSecs = 5;
-var minTempWhileCooling = 0.83333;       // 33.5 degrees fahrenheit 
-var hysteresisTolerance = 0.75;          // degrees celcius
+var minTempWhileCooling = 0.50;       // degrees celcius
+var hysteresisTolerance = 0.50;       // degrees celcius
 
 //
 // Pins
@@ -39,7 +39,7 @@ var tempSensorWire = A1;
 //
 // Test mode.  Set to true to mock the temperature setting and simulate it dropping
 //
-var testMode = false;
+var testMode = true;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = minTempWhileCooling;
 
@@ -243,7 +243,9 @@ function startMonitoring() {
 
 function stopMonitoring() {
   digitalWrite(BlueLED, 0);
+  setHeater(false);
   clearInterval(monitorInterval);
+  monitorInterval = null;
   storage.save();
 }
 
@@ -284,15 +286,16 @@ function readTempsAndSave() {
   
   if (currentTemp) {
     if (currentTemp < minTempWhileCooling - hysteresisTolerance) {
-      log.log('turned heater on, temp is: ' + currentTemp);
+      log.log('turning/keeping heater on, temp is: ' + currentTemp);
       setHeater(true);
-    }
-    
-    if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
-      log.log('turned heater off, temp is: ' + currentTemp);
+    } else if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
+      log.log('turning/keeping heater off, temp is: ' + currentTemp);
       setHeater(false);
+    } else {
+      log.log('within hysteresisTolerance, temp is: ' + currentTemp);
     }
   } else {
+    log.log('can\'t get currentTemp, turning/keeping heater off');
     setHeater(false);
   }
 
@@ -373,7 +376,11 @@ function onInit() {
   // Main button turns it on and off
   //
   setWatch(button1Change, BTN1, true);
-
+  
+  //
+  // Just in case
+  //
+  setHeater(false);
 }
 
 function clearAll() {
@@ -412,7 +419,8 @@ var clockStatus = {
 };
 var heaterIsOn = false;
 
-log.log('\n\n----------------------------------------------');
+log.log('\n\n');
+log.log('----------------------------------------------');
 log.log('Starting up, version: ' + programVersion);
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
