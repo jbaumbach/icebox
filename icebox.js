@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.5';
+var programVersion = '0.3.6';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempWhileCooling = 0.50;       // degrees celcius
 var hysteresisTolerance = 0.75;       // degrees celcius
@@ -43,7 +43,7 @@ var tempSensorWire = A1;
 //
 // Test mode.  Set to true to mock the temperature setting and simulate it dropping
 //
-var testMode = false;
+var testMode = true;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = minTempWhileCooling;
 
@@ -368,11 +368,6 @@ function setHeater(isOn) {
 function onInit() {
   log.log('onInit() running');
   
-  digitalWrite([LED1,LED2,LED3],0b100);
-  setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
-  setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
-  setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
-
   // get the first bad reading out of the way
   sensor.getTemp();
 
@@ -385,6 +380,15 @@ function onInit() {
   // Just in case
   //
   setHeater(false);
+
+  //
+  // ooOOoo - pretty colors
+  //
+  digitalWrite([LED1,LED2,LED3],0b100);
+  setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
+  setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
+  setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
+
 }
 
 function clearAll() {
