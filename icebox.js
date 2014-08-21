@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/14/2014 JB
+  Edited: 8/21/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.6';
+var programVersion = '0.3.7';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempWhileCooling = 0.50;       // degrees celcius
 var hysteresisTolerance = 0.75;       // degrees celcius
@@ -41,9 +41,10 @@ var RelayWire = A0;
 var tempSensorWire = A1;
 
 //
-// Test mode.  Set to true to mock the temperature setting and simulate it dropping
+// Test mode.  Set to true (long button press) to mock the temperature setting 
+// and simulate it dropping
 //
-var testMode = true;
+var testMode;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = minTempWhileCooling;
 
@@ -331,24 +332,26 @@ function getDate() {
 }
 
 
-function button1Change() {
-  //
-  // Only handle "buttonDown" state
-  //
-  if (digitalRead(BTN1) == 1) {
-    
-    if (monitorInterval) {
-      //
-      // Turn off
-      //
-      stopMonitoring();
-      log.log('button click: stop monitoring');
-    } else {
-      //
-      // Turn on
-      //
-      startMonitoring();
-      log.log('button click: start monitoring');
+function button1Change(e) {
+  var buttonPressedDuration = (e.time - e.lastTime);
+  log.log('button1Change: duration=' + buttonPressedDuration + ', now=' + e.state);
+  
+  if (monitorInterval) {
+    //
+    // Turn off
+    //
+    stopMonitoring();
+    log.log('button click: stop monitoring');
+  } else {
+    //
+    // Turn on
+    //
+    testMode = (buttonPressedDuration > 1.0);
+    startMonitoring();
+    log.log('button click: start monitoring');
+    if (testMode) {
+      log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
+      RedLED.blip();
     }
   }
 }
@@ -374,7 +377,10 @@ function onInit() {
   //
   // Main button turns it on and off
   //
-  setWatch(button1Change, BTN1, true);
+  //
+  // Only handle "buttonDown" state.  Long press (> 1 second) enters test mode
+  //
+  setWatch(button1Change, BTN1, { repeat: true, edge:'falling', debounce:10 });
   
   //
   // Just in case
@@ -433,9 +439,6 @@ log.log('Starting up, version: ' + programVersion);
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
 log.log(' * min air temperature (celcius): ' + minTempWhileCooling);
-if (testMode) {
-  log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
-}
 log.log('----------------------------------------------');
         
 // eof
