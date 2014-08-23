@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/21/2014 JB
+  Edited: 8/22/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -28,7 +28,7 @@
 //
 var programVersion = '0.3.7';
 var readTempAndSaveMonitorIntervalSecs = 5;
-var minTempWhileCooling = 0.50;       // degrees celcius
+var minTempWhileCooling = -3.50;       // degrees celcius
 var hysteresisTolerance = 0.75;       // degrees celcius
 
 //
