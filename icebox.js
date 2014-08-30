@@ -26,10 +26,11 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.8';
+var programVersion = '0.3.9';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempWhileCooling = -3.50;       // degrees celcius
 var hysteresisTolerance = 0.75;       // degrees celcius
+var vibratorPower = 0.60;              // Scale of 0 to 1, 1 being max.
 
 //
 // Pins
@@ -39,6 +40,7 @@ var GreenLED = LED2;
 var BlueLED = LED3;
 var RelayWire = A0;
 var tempSensorWire = A1;
+var vibratorMotor = C3;
 
 //
 // Test mode.  Set to true (long button press) to mock the temperature setting 
@@ -118,6 +120,26 @@ Pin.prototype.slowBlink = function(times) {
   setLightLevel();
 };
 
+Pin.prototype.setOnForPeriod = function(power, durationSecs) {
+  var interval;
+  var self = this;
+  power = Math.min(power, 1.0);
+  
+  function stop() {
+    if ((typeof interval) !== "undefined") {
+      clearInterval(interval);
+      self.reset();
+    }
+  }
+  
+  interval = setInterval(function() {
+    digitalPulse(self, 1, power * 20);
+  }, 20);
+  
+  setTimeout(function() {
+    stop();
+  }, durationSecs * 1000);
+};
 
 var trunc = function(x) {
   return x < 0 ? Math.ceil(x) : Math.floor(x);
@@ -244,6 +266,7 @@ function button1Change(e) {
     if (testMode) {
       log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
       RedLED.blip();
+      vibratorMotor.setOnForPeriod(vibratorPower / 2.0, 0.25);
     }
   }
 }
