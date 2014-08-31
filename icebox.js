@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/29/2014 JB
+  Edited: 8/30/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,11 +26,13 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.9';
+var programVersion = '0.3.10';
 var readTempAndSaveMonitorIntervalSecs = 5;
-var minTempWhileCooling = -3.50;       // degrees celcius
+var minTempWhileCooling = -7.50;       // degrees celcius
 var hysteresisTolerance = 0.75;       // degrees celcius
-var vibratorPower = 0.60;              // Scale of 0 to 1, 1 being max.
+var vibratorPower = 0.30;              // Scale of 0 to 1, 1 being max.
+var vibratorOnIntervalSecs = 120;
+var vibratorOnDurationSecs = 3;
 
 //
 // Pins
@@ -175,6 +177,7 @@ Log.prototype.clear = function() {
 function startMonitoring() {
   digitalWrite(BlueLED, 1);
   monitorInterval = setInterval(readTempsAndSave, readTempAndSaveMonitorIntervalSecs * 1000);
+  vibratorInterval = setInterval(doVibration, vibratorOnIntervalSecs * 1000);
 }
 
 function stopMonitoring() {
@@ -182,7 +185,8 @@ function stopMonitoring() {
   setHeater(false);
   clearInterval(monitorInterval);
   monitorInterval = null;
-  storage.save();
+  clearInterval(vibratorInterval);
+  vibratorInterval = null;
 }
 
 
@@ -231,7 +235,12 @@ function readTempsAndSave() {
   GreenLED.blip();
 }
   
+function doVibration() {
+  log.log('turning on vibration');
+  vibratorMotor.setOnForPeriod(vibratorPower, vibratorOnDurationSecs);
+}
 
+  
 function setDate(unixDate) {
   clk.setClock(unixDate);
   log.log('set date to: ' + unixDate + ' (' + clk.getDate().toString() + ')');
@@ -266,7 +275,7 @@ function button1Change(e) {
     if (testMode) {
       log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
       RedLED.blip();
-      vibratorMotor.setOnForPeriod(vibratorPower / 2.0, 0.25);
+      vibratorMotor.setOnForPeriod(vibratorPower * 0.75, 0.25);
     }
   }
 }
@@ -338,6 +347,7 @@ function perfTest() {
 // Program variables
 //
 var monitorInterval;
+var vibratorInterval;
 var clk = new Clock(Date.now());
 var log = new Log();
 var clockStatus = {
@@ -352,6 +362,11 @@ log.log('Starting up, version: ' + programVersion);
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
 log.log(' * min air temperature (celcius): ' + minTempWhileCooling);
+log.log(' * vibration power (0.0 - 1.0): ' + vibratorPower);
+log.log(' * vibration interval (secs): ' + vibratorOnIntervalSecs);
+log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
+
+        
 log.log('----------------------------------------------');
         
 // eof
