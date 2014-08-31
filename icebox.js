@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/30/2014 JB
+  Edited: 8/31/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,10 +26,11 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.10';
+var programVersion = '0.3.11';
 var readTempAndSaveMonitorIntervalSecs = 5;
-var minTempWhileCooling = -7.50;       // degrees celcius
-var hysteresisTolerance = 0.75;       // degrees celcius
+//var minTempWhileCooling = -7.50;                 // degrees celcius
+var minTempDifferentialExternalInternal = 1.5;   // degrees celcius
+var hysteresisTolerance = 0.75;                  // degrees celcius
 var vibratorPower = 0.30;              // Scale of 0 to 1, 1 being max.
 var vibratorOnIntervalSecs = 120;
 var vibratorOnDurationSecs = 3;
@@ -42,6 +43,7 @@ var GreenLED = LED2;
 var BlueLED = LED3;
 var RelayWire = A0;
 var tempSensorWire = A1;
+var tempExternalSensorWire = C2;
 var vibratorMotor = C3;
 
 //
@@ -50,16 +52,16 @@ var vibratorMotor = C3;
 //
 var testMode;
 var testModeIncrements = hysteresisTolerance / 3;
-var testModeTemperature = minTempWhileCooling;
-
+var testModeTemperature = -5.0;
+var testModeExternalTemperature = testModeTemperature;
 
 //
 // Requires
 //
 var Clock = require('clock').Clock;
-var ow = new OneWire(tempSensorWire);
-var sensor = require("DS18B20").connect(ow);
-
+//var ow = new OneWire(tempSensorWire);
+var sensor = require("DS18B20").connect(new OneWire(tempSensorWire));
+var sensorExternal = require("DS18B20").connect(new OneWire(tempExternalSensorWire));
 
 
 //
@@ -196,7 +198,7 @@ function stopMonitoring() {
 //
 
 function readTempsAndSave() {
-  var currentTemp;
+  var currentTemp, externalTemp, currentDifferential;
   if (testMode) {
     if (heaterIsOn) {
       testModeTemperature += testModeIncrements;
@@ -204,40 +206,45 @@ function readTempsAndSave() {
       testModeTemperature -= testModeIncrements;
     }
     currentTemp = testModeTemperature;
+    externalTemp = testModeExternalTemperature;
   } else {
     currentTemp = sensor.getTemp();
+    externalTemp = sensorExternal.getTemp();
   }
   
-  if (currentTemp) {
-    if (currentTemp < minTempWhileCooling - hysteresisTolerance) {
-      log.log('turning/keeping heater on, temp is: ' + currentTemp);
+  var logMessage = 'internal: ' + currentTemp + ', external: ' + externalTemp;
+  
+  if (currentTemp && externalTemp) {
+    currentDifferential = currentTemp - externalTemp;
+    logMessage += ', diff: ' + currentDifferential;
+    if (currentTemp > 0.0) {
+      logMessage += ', msg: not freezing yet - waiting';
+    } else if (currentDifferential < minTempDifferentialExternalInternal - hysteresisTolerance) {
+      logMessage += ', msg: set heater on';
       setHeater(true);
-    } else if (currentTemp >= minTempWhileCooling + hysteresisTolerance) {
-      log.log('turning/keeping heater off, temp is: ' + currentTemp);
+    } else if (currentDifferential >= minTempDifferentialExternalInternal + hysteresisTolerance) {
+      logMessage += ', msg: set heater off';
       setHeater(false);
     } else {
-      log.log('within hysteresisTolerance, temp is: ' + currentTemp);
+      logMessage += ', msg: in hysteresis, keep status quo';
     }
   } else {
-    log.log('can\'t get currentTemp, turning/keeping heater off');
+    logMessage += ', msg: (error) can\'t get a temp - set heater off just in case';
     setHeater(false);
   }
 
-  var reading = {
-    time: getDate().toString(),
-    reading: {
-      internal: currentTemp,
-      heaterIsOn: heaterIsOn
-    }
-  };
-  console.log(reading);
+  log.log(logMessage);
   
   GreenLED.blip();
 }
   
 function doVibration() {
-  log.log('turning on vibration');
-  vibratorMotor.setOnForPeriod(vibratorPower, vibratorOnDurationSecs);
+  if (testMode) {
+    log.log('no good vibrations - test mode!');
+  } else {
+    log.log('turning on vibration');
+    vibratorMotor.setOnForPeriod(vibratorPower, vibratorOnDurationSecs);
+  }
 }
 
   
@@ -266,16 +273,29 @@ function button1Change(e) {
     stopMonitoring();
     log.log('button click: stop monitoring');
   } else {
+    var validClick = false;
     //
     // Turn on
     //
-    testMode = (buttonPressedDuration > 1.0);
-    startMonitoring();
-    log.log('button click: start monitoring');
-    if (testMode) {
-      log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
-      RedLED.blip();
-      vibratorMotor.setOnForPeriod(vibratorPower * 0.75, 0.25);
+    if (buttonPressedDuration < 1.0) {
+      validClick = true;
+    } else if (buttonPressedDuration < 5.0) {
+      validClick = true;
+      testMode = true;
+    } else {
+      log.log('ignoring inexplicably long button press duration');
+    }
+    
+    if (validClick) {
+      testMode = (buttonPressedDuration > 1.0);
+      startMonitoring();
+      log.log('button click: start monitoring');
+      if (testMode) {
+        log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
+        RedLED.blip();
+        // Blip the motor on startup
+        vibratorMotor.setOnForPeriod(vibratorPower * 0.75, 0.25);
+      }
     }
   }
 }
@@ -297,7 +317,8 @@ function onInit() {
   
   // get the first bad reading out of the way
   sensor.getTemp();
-
+  sensorExternal.getTemp();
+  
   //
   // Main button turns it on and off
   //
@@ -361,7 +382,8 @@ log.log('----------------------------------------------');
 log.log('Starting up, version: ' + programVersion);
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
-log.log(' * min air temperature (celcius): ' + minTempWhileCooling);
+log.log(' * max temp differential (celcius): ' + minTempDifferentialExternalInternal);
+log.log(' * hysteresis tolerance (celcius): ' + hysteresisTolerance);
 log.log(' * vibration power (0.0 - 1.0): ' + vibratorPower);
 log.log(' * vibration interval (secs): ' + vibratorOnIntervalSecs);
 log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
