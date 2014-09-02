@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/14/2014 JB
+  Edited: 8/30/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,10 +26,13 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.5';
+var programVersion = '0.3.10';
 var readTempAndSaveMonitorIntervalSecs = 5;
-var minTempWhileCooling = 0.50;       // degrees celcius
+var minTempWhileCooling = -7.50;       // degrees celcius
 var hysteresisTolerance = 0.75;       // degrees celcius
+var vibratorPower = 0.30;              // Scale of 0 to 1, 1 being max.
+var vibratorOnIntervalSecs = 120;
+var vibratorOnDurationSecs = 3;
 
 //
 // Pins
@@ -39,11 +42,13 @@ var GreenLED = LED2;
 var BlueLED = LED3;
 var RelayWire = A0;
 var tempSensorWire = A1;
+var vibratorMotor = C3;
 
 //
-// Test mode.  Set to true to mock the temperature setting and simulate it dropping
+// Test mode.  Set to true (long button press) to mock the temperature setting 
+// and simulate it dropping
 //
-var testMode = false;
+var testMode;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = minTempWhileCooling;
 
@@ -117,6 +122,26 @@ Pin.prototype.slowBlink = function(times) {
   setLightLevel();
 };
 
+Pin.prototype.setOnForPeriod = function(power, durationSecs) {
+  var interval;
+  var self = this;
+  power = Math.min(power, 1.0);
+  
+  function stop() {
+    if ((typeof interval) !== "undefined") {
+      clearInterval(interval);
+      self.reset();
+    }
+  }
+  
+  interval = setInterval(function() {
+    digitalPulse(self, 1, power * 20);
+  }, 20);
+  
+  setTimeout(function() {
+    stop();
+  }, durationSecs * 1000);
+};
 
 var trunc = function(x) {
   return x < 0 ? Math.ceil(x) : Math.floor(x);
@@ -144,97 +169,6 @@ Log.prototype.clear = function() {
 };
 
 
-//
-// Storage class - saves the temperature readings to storage
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-//
-
-var Storage = function() {
-  this.temperatureStorageFName = 'ibox-temps-[token].json';
-  this.maxReadingsPerPage = 24;
-  this.info = {
-  };
-  this.temps = [];
-};
-
-Storage.prototype.reset = function() {
-  log.log('reseting storage');
-  var result = 'ok';
-  var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
-  try {
-    fs.unlink(infoFName);
-  } catch(e) {
-    // Swallow
-    result = 'err: '+  e;
-  }
-  return result;
-};
-
-Storage.prototype.save = function() {
-  if (this.info.totalItems > 0) {
-    log.log('saving storage: start');
-  
-    var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
-    fs.writeFile(infoFName, JSON.stringify(this.info));
-  
-    var page = trunc((this.info.totalItems - 1) / this.maxReadingsPerPage);
-    var strData = JSON.stringify(this.temps);
-    var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
-    fs.writeFile(dataFName, strData);
-    
-    log.log('saving storage: done. page = ' + page);
-  } else {
-    log.log('not saving: no items');
-  }
-};
-
-
-Storage.prototype.readSummary = function() {
-  var infoFName = this.temperatureStorageFName.replace('[token]', 'info');
-  console.log('reading from: ' + infoFName);
-  
-  var storedData = fs.readFile(infoFName);
-  console.log('read data: ', storedData);
-  var result = JSON.parse(storedData);
-  
-  if (!result) {
-    console.log('(error) couldn\'t parse: ' + storedData);
-  }
-  return result;
-};
-
-Storage.prototype.readPage = function(pageNo) {
-  var dataFName = this.temperatureStorageFName.replace('[token]', '' + page);
-  var page = fs.readFile(dataFName);
-  var result = JSON.parse(page);
-  
-  if (!result) {
-    console.log('(error) couldn\'t parse: ' + page);
-  }
-  return result;
-};
-
-
-
-Storage.prototype.addReading = function(reading) {
-  
-  if (!clockStatus.set && !clockStatus.warned) {
-    log.log('(warning) adding readings and date is not set!');
-    clockStatus.warned = true;
-  }
-  
-  if (this.temps.length >= this.maxReadingsPerPage) {
-    this.save();
-    this.temps = [];
-  }
-  
-  this.info.totalItems = (this.info.totalItems ? this.info.totalItems + 1 : 1);
-  this.temps.push(reading);
-  log.log('added reading, have total items: ' + this.info.totalItems);
-};
-
-
-
 
 //
 // Monitoring
@@ -243,6 +177,7 @@ Storage.prototype.addReading = function(reading) {
 function startMonitoring() {
   digitalWrite(BlueLED, 1);
   monitorInterval = setInterval(readTempsAndSave, readTempAndSaveMonitorIntervalSecs * 1000);
+  vibratorInterval = setInterval(doVibration, vibratorOnIntervalSecs * 1000);
 }
 
 function stopMonitoring() {
@@ -250,23 +185,8 @@ function stopMonitoring() {
   setHeater(false);
   clearInterval(monitorInterval);
   monitorInterval = null;
-  storage.save();
-}
-
-//
-// Stored monitoring data
-//
-function resetMonitoringData() {
-  return storage.reset();
-}
-
-function getMonitoringDataSummary() {
-  return storage.readSummary();
-}
-
-function getMonitoringDataPage(pageNo) {
-  var s = storage.readPage(pageNo);
-  return s;
+  clearInterval(vibratorInterval);
+  vibratorInterval = null;
 }
 
 
@@ -311,12 +231,16 @@ function readTempsAndSave() {
     }
   };
   console.log(reading);
-  storage.addReading(reading);
   
   GreenLED.blip();
 }
   
+function doVibration() {
+  log.log('turning on vibration');
+  vibratorMotor.setOnForPeriod(vibratorPower, vibratorOnDurationSecs);
+}
 
+  
 function setDate(unixDate) {
   clk.setClock(unixDate);
   log.log('set date to: ' + unixDate + ' (' + clk.getDate().toString() + ')');
@@ -331,24 +255,27 @@ function getDate() {
 }
 
 
-function button1Change() {
-  //
-  // Only handle "buttonDown" state
-  //
-  if (digitalRead(BTN1) == 1) {
-    
-    if (monitorInterval) {
-      //
-      // Turn off
-      //
-      stopMonitoring();
-      log.log('button click: stop monitoring');
-    } else {
-      //
-      // Turn on
-      //
-      startMonitoring();
-      log.log('button click: start monitoring');
+function button1Change(e) {
+  var buttonPressedDuration = (e.time - e.lastTime);
+  log.log('button1Change: duration=' + buttonPressedDuration + ', now=' + e.state);
+  
+  if (monitorInterval) {
+    //
+    // Turn off
+    //
+    stopMonitoring();
+    log.log('button click: stop monitoring');
+  } else {
+    //
+    // Turn on
+    //
+    testMode = (buttonPressedDuration > 1.0);
+    startMonitoring();
+    log.log('button click: start monitoring');
+    if (testMode) {
+      log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
+      RedLED.blip();
+      vibratorMotor.setOnForPeriod(vibratorPower * 0.75, 0.25);
     }
   }
 }
@@ -368,27 +295,33 @@ function setHeater(isOn) {
 function onInit() {
   log.log('onInit() running');
   
-  digitalWrite([LED1,LED2,LED3],0b100);
-  setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
-  setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
-  setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
-
   // get the first bad reading out of the way
   sensor.getTemp();
 
   //
   // Main button turns it on and off
   //
-  setWatch(button1Change, BTN1, true);
+  //
+  // Only handle "buttonDown" state.  Long press (> 1 second) enters test mode
+  //
+  setWatch(button1Change, BTN1, { repeat: true, edge:'falling', debounce:10 });
   
   //
   // Just in case
   //
   setHeater(false);
+
+  //
+  // ooOOoo - pretty colors
+  //
+  digitalWrite([LED1,LED2,LED3],0b100);
+  setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
+  setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
+  setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
+
 }
 
 function clearAll() {
-  storage.reset();
   log.clear();
   return 'ok';
 }
@@ -413,8 +346,8 @@ function perfTest() {
 //
 // Program variables
 //
-var storage = new Storage();
 var monitorInterval;
+var vibratorInterval;
 var clk = new Clock(Date.now());
 var log = new Log();
 var clockStatus = {
@@ -429,9 +362,11 @@ log.log('Starting up, version: ' + programVersion);
 log.log('Info: ');
 log.log(' * temp reading interval (secs): ' + readTempAndSaveMonitorIntervalSecs);
 log.log(' * min air temperature (celcius): ' + minTempWhileCooling);
-if (testMode) {
-  log.log(' * test mode!! temp reading will start at ' + testModeTemperature + ' then drop until heater comes on, then will rise');
-}
+log.log(' * vibration power (0.0 - 1.0): ' + vibratorPower);
+log.log(' * vibration interval (secs): ' + vibratorOnIntervalSecs);
+log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
+
+        
 log.log('----------------------------------------------');
         
 // eof
