@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title>Temps Data</title>
+  <!--<script src="http://cdnjs.cloudflare.com/ajax/libs/Chart.js/0.2.0/Chart.js"></script>-->
+  <script src="/Users/jbaumbach/Desktop/Chart.js"></script>
+  <!--<script src="https://raw.githubusercontent.com/nnnick/Chart.js/master/Chart.js"></script>-->
+</head>
+<body>
+  <p>Temps Data</p>
+  <canvas id="myChart" width="1600" height="400"></canvas>
+  <script type="text/javascript">
+    var data = {
+      labels: <%LABELS%>,
+      datasets: [
+        {
+          label: "My First dataset",
+          fillColor: "rgba(220,220,220,0.2)",
+          strokeColor: "rgba(220,220,220,1)",
+          pointColor: "rgba(220,220,220,1)",
+          pointStrokeColor: "#fff",
+          pointHighlightFill: "#fff",
+          pointHighlightStroke: "rgba(220,220,220,1)",
+          data: <%DATA%>
+        }
+      ]
+    };
+    // Get the context of the canvas element we want to select
+    var ctx = document.getElementById("myChart").getContext("2d");
+/*
+    var options = {
+      scaleStartValue: -2.0
+    }
+*/
+    var myLineChart = new Chart(ctx).Line(data);    //, options);
+    console.log('yoda');
+    console.log('label count: ', data.labels.length, ', data count: ', data.datasets[0].data.length);
+  </script>
+</body>
+</html>
