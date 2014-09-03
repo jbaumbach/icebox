@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 8/31/2014 JB
+  Edited: 8/02/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.11';
+var programVersion = '0.3.12';
 var readTempAndSaveMonitorIntervalSecs = 5;
 //var minTempWhileCooling = -7.50;                 // degrees celcius
 var minTempDifferentialExternalInternal = 1.5;   // degrees celcius
@@ -214,7 +214,7 @@ function readTempsAndSave() {
   
   var logMessage = 'internal: ' + currentTemp + ', external: ' + externalTemp;
   
-  if (currentTemp && externalTemp) {
+  if (currentTemp && externalTemp && currentTemp <= 30 && externalTemp <= 30) {
     currentDifferential = currentTemp - externalTemp;
     logMessage += ', diff: ' + currentDifferential;
     if (currentTemp > 0.0) {
@@ -229,7 +229,7 @@ function readTempsAndSave() {
       logMessage += ', msg: in hysteresis, keep status quo';
     }
   } else {
-    logMessage += ', msg: (error) can\'t get a temp - set heater off just in case';
+    logMessage += ', msg: (error) can\'t get a temp or insane value(s) - set heater off just in case';
     setHeater(false);
   }
 
