@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Temps Data</title>
   <!--<script src="http://cdnjs.cloudflare.com/ajax/libs/Chart.js/0.2.0/Chart.js"></script>-->
-  <script src="/Users/jbaumbach/Desktop/Chart.js"></script>
+  <script src="./Chart.js"></script>
   <!--<script src="https://raw.githubusercontent.com/nnnick/Chart.js/master/Chart.js"></script>-->
 </head>
 <body>
@@ -15,7 +15,7 @@
       labels: <%LABELS%>,
       datasets: [
         {
-          label: "My First dataset",
+          label: "Internal Temps",
           fillColor: "rgba(220,220,220,0.2)",
           strokeColor: "rgba(220,220,220,1)",
           pointColor: "rgba(220,220,220,1)",
@@ -23,6 +23,16 @@
           pointHighlightFill: "#fff",
           pointHighlightStroke: "rgba(220,220,220,1)",
           data: <%DATA%>
+        },
+        {
+          label: "External Temps",
+          fillColor: "rgba(120,220,220,0.2)",
+          strokeColor: "rgba(120,220,220,1)",
+          pointColor: "rgba(120,220,220,1)",
+          pointStrokeColor: "#eff",
+          pointHighlightFill: "#eff",
+          pointHighlightStroke: "rgba(120,220,220,1)",
+          data: <%DATA_EXTERNAL%>
         }
       ]
     };
