@@ -35,12 +35,14 @@ fs.readFile(fName, function (err, data) {
     // console.log('got: ' + line);
     if (line) {
       var tempMatch = line.match(/^(.*): internal:([0-9\-\. ]*), external:([0-9\-\. ]*), diff:([0-9\-\. ]*), msg:(.*)$/); // [1] + '\n';
-      if (tempMatch && tempMatch[2] <= maxTemp && tempMatch[3] <= maxTemp && dataItems < maxDataItems) {
-        lineCount++;
+      if (tempMatch) {
         heatOn = heatOn || (tempMatch[5].trim() === 'set heater on');
         if (heatOn) {
-          console.log('heat is on!');
+          //console.log('heat is on!');
         }
+      }
+      if (tempMatch && tempMatch[2] <= maxTemp && tempMatch[3] <= maxTemp && dataItems < maxDataItems) {
+        lineCount++;
         if (lineCount % skip === 0 && lineCount >= skipFirst) {
           dataItems++;
           var time = new Date(tempMatch[1]);
