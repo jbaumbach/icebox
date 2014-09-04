@@ -10,10 +10,17 @@
   
 var 
   fs = require('fs')
-  util = require('util')
+  , util = require('util')
+  , program = require('commander')
 ;
 
-var fName = './ibox-log-2014-09-01.txt';
+program
+  .version('0.0.1')
+  .option('-f, --file [name]', 'Log file to parse (default: ibox-log.txt)')
+  .option('-s, --skip [n]', 'Lines to skip (default: 0)')
+  .parse(process.argv);
+
+var fName = program.file || 'ibox-log.txt';
 var outTemplate = './chart-template.html';
 var outFName = './chart-try1.html';
 var outData = '';
@@ -21,12 +28,14 @@ var lineCount = 0;
 var dataItems = 0;
 var maxTemp = 40;
 var skip = 17;
-var skipFirst = 0;
+var skipFirst = program.skip || 0;
 var maxDataItems = 600;
 var labels = [], tempsData = [], tempsDataExternal = [];
 var maxTempFound, minTempFound;
 var hour;
+var heatedTimes = 0;
 
+console.log('-- parsing "' + fName + '", skipping ' + skipFirst + ' lines --');
 fs.readFile(fName, function (err, data) {
   if (err) throw err;
   var lines = data.toString().split('\n');
@@ -54,6 +63,7 @@ fs.readFile(fName, function (err, data) {
             if (heatOn) {
               labels.push('HEAT');
               heatOn = false;
+              heatedTimes++;
             } else {
               labels.push('');
             }
@@ -78,7 +88,7 @@ fs.readFile(fName, function (err, data) {
       replace('<%DATA_EXTERNAL%>', util.inspect(tempsDataExternal));
     fs.writeFile(outFName, outData, function(err) {
       if (err) throw err;
-      console.log('boom - done - (' + lineCount + ') ' + dataItems + ' data items, max=' + maxTempFound + ', min=' + minTempFound);
+      console.log('boom - done - (' + lineCount + ') ' + dataItems + ' data items, max=' + maxTempFound + ', min=' + minTempFound + ', heatedTimes=' + heatedTimes);
     })
 
   })
