@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/02/2014 JB
+  Edited: 9/03/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -29,7 +29,7 @@
 var programVersion = '0.3.12';
 var readTempAndSaveMonitorIntervalSecs = 5;
 //var minTempWhileCooling = -7.50;                 // degrees celcius
-var minTempDifferentialExternalInternal = 2.0;   // degrees celcius
+var minTempDifferentialExternalInternal = 5.0;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
 var vibratorPower = 0.35;              // Scale of 0 to 1, 1 being max.
 var vibratorOnIntervalSecs = 120;
