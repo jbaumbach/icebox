@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/03/2014 JB
+  Edited: 9/06/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,14 +26,13 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.12';
+var programVersion = '0.3.13';
 var readTempAndSaveMonitorIntervalSecs = 5;
-//var minTempWhileCooling = -7.50;                 // degrees celcius
-var minTempDifferentialExternalInternal = 5.0;   // degrees celcius
+var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
-var vibratorPower = 0.35;              // Scale of 0 to 1, 1 being max.
+var vibratorPower = 0.30;              // Scale of 0 to 1, 1 being max.
 var vibratorOnIntervalSecs = 120;
-var vibratorOnDurationSecs = 4;
+var vibratorOnDurationSecs = 3;
 
 //
 // Pins
@@ -377,6 +376,11 @@ var clockStatus = {
 };
 var heaterIsOn = false;
 
+//
+// Fresh log file
+//
+clearAll();
+  
 log.log('\n\n');
 log.log('----------------------------------------------');
 log.log('Starting up, version: ' + programVersion);
@@ -390,6 +394,9 @@ log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
 
         
 log.log('----------------------------------------------');
+        
+// eof
+-----------');
         
 // eof
 f
