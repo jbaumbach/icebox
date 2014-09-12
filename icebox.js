@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.14';
+var programVersion = '0.3.16';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
@@ -88,14 +88,14 @@ Pin.prototype.slowBlink = function(times) {
   var Hz = 50;        // don't change this
   var changeHz = 50;  // increase to make light smoother
   var blinkDurationSecs = 2;
-  
+
   var self = this;
   var angle = (Math.PI * 1.5);
   var loop = 0;
   var changeStep = (Math.PI * blinkDurationSecs) / (changeHz * 2);  // should do full rotation in time period
   var totalRange = times * (changeHz * blinkDurationSecs);
   var brightness, pulseInterval;
-  
+
   function pwm() {
     var pulseTime = brightness * (1000/Hz);
     if (pulseTime > 0) {
@@ -103,14 +103,14 @@ Pin.prototype.slowBlink = function(times) {
     }
     pulseInterval = setTimeout(pwm, 1000/Hz);
   }
-  
+
   function setLightLevel() {
     brightness = Math.abs((1 + Math.sin(angle)) / 2);
     if (loop < totalRange) {
       if ((typeof pulseInterval) === "undefined") {
         pwm();
       }
-      
+
       angle += changeStep;
       loop++;
       setTimeout(setLightLevel, 1000 / changeHz);
@@ -119,7 +119,7 @@ Pin.prototype.slowBlink = function(times) {
       self.reset();
     }
   }
-  
+
   setLightLevel();
 };
 
@@ -127,18 +127,18 @@ Pin.prototype.setOnForPeriod = function(power, durationSecs) {
   var interval;
   var self = this;
   power = Math.min(power, 1.0);
-  
+
   function stop() {
     if ((typeof interval) !== "undefined") {
       clearInterval(interval);
       self.reset();
     }
   }
-  
+
   interval = setInterval(function() {
     digitalPulse(self, 1, power * 20);
   }, 20);
-  
+
   setTimeout(function() {
     stop();
   }, durationSecs * 1000);
@@ -210,9 +210,9 @@ function readTempsAndSave() {
     currentTemp = sensor.getTemp();
     externalTemp = sensorExternal.getTemp();
   }
-  
+
   var logMessage = 'internal: ' + currentTemp + ', external: ' + externalTemp;
-  
+
   if (currentTemp && externalTemp && currentTemp <= 30 && externalTemp <= 30) {
     currentDifferential = currentTemp - externalTemp;
     logMessage += ', diff: ' + currentDifferential;
@@ -233,10 +233,10 @@ function readTempsAndSave() {
   }
 
   log.log(logMessage);
-  
+
   GreenLED.blip();
 }
-  
+
 function doVibration() {
   if (testMode) {
     log.log('no good vibrations - test mode!');
@@ -308,16 +308,96 @@ function setHeater(isOn) {
 }
 
 
+function clearAll() {
+  log.clear();
+  return 'ok';
+}
+
+
+//
+// Nano Serial Server
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+
+var serverInputBuffer = '';
+var request = Serial1;
+var response = Serial1;
+
+var routes = {};
+
+function nanoServer(data) {
+  var eol = 'x';  // '\r';
+  serverInputBuffer+=data;
+  var idx = serverInputBuffer.indexOf(eol);
+  while (idx >= 0) { 
+    var line = serverInputBuffer.substr(0,idx);
+    serverInputBuffer = serverInputBuffer.substr(idx+1);
+    nanoRouter(line);
+    idx = serverInputBuffer.indexOf(eol);
+  }
+}
+
+function nanoRespond(code, msg) {
+  var result = code + ' ' + msg;
+  log.log(result);
+  response.println(result);
+}
+
+function nanoRouter(line) {
+  var verbItem = 0; var resourceItem = 1; var dataItem = 2;
+  var meta = line.split(' ');
+
+  if (meta && meta.length >= 2) {
+    var resource = meta[resourceItem];
+    if (routes[resource]) {
+      var verb = meta[verbItem];
+      var func = routes[resource][verb];
+      if (func) {
+        func(meta.length > 2 ? meta[dataItem] : null);
+      } else {
+        nanoRespond('404', 'resource ' + resource + ' has no action ' + verb);
+      }
+    } else {
+      nanoRespond('404', 'unknown resource: ' + resource);
+    }
+  } else {
+    nanoRespond('422', 'cannot process line: ' + line);
+  }
+}
+
+
+routes.temps = {
+  get: function(params) {
+    var result = {
+      internal: sensor.getTemp(),
+      external: sensorExternal.getTemp()
+    };
+    nanoRespond('200', JSON.stringify(result));
+  }
+};
+
+routes.button = {
+  post: function(params) {
+    if (params == 'short') {
+      button1Change({ time:1, lastTime: 0 });
+      nanoRespond('200', JSON.stringify({msg:'ok'}));
+    } else if (params == 'long') {
+      button1Change({ time:6, lastTime: 0 });
+      nanoRespond('200', JSON.stringify({msg:'ok'}));
+    } else {
+      nanoRespond('422', JSON.stringify({msg:'should be "short" or "long"'}));
+    }
+  }
+};
+
+
+
 //
 // Stuff to do on power up
 //
 function onInit() {
   log.log('onInit() running');
-  
-  // get the first bad reading out of the way
-  sensor.getTemp();
-  sensorExternal.getTemp();
-  
+
   //
   // Main button turns it on and off
   //
@@ -325,7 +405,7 @@ function onInit() {
   // Only handle "buttonDown" state.  Long press (> 1 second) enters test mode
   //
   setWatch(button1Change, BTN1, { repeat: true, edge:'falling', debounce:10 });
-  
+
   //
   // Just in case
   //
@@ -338,13 +418,9 @@ function onInit() {
   setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
-
 }
 
-function clearAll() {
-  log.clear();
-  return 'ok';
-}
+
 
 //
 // Usually takes about 4 seconds, not too bad
@@ -380,7 +456,17 @@ var heaterIsOn = false;
 // Fresh log file
 //
 clearAll();
-  
+
+// get the first bad reading out of the way
+sensor.getTemp();
+sensorExternal.getTemp();
+
+//
+// Set up Bluetooth listener
+//
+request.on('data', nanoServer);
+
+
 log.log('\n\n');
 log.log('----------------------------------------------');
 log.log('Starting up, version: ' + programVersion);
@@ -392,7 +478,7 @@ log.log(' * vibration power (0.0 - 1.0): ' + vibratorPower);
 log.log(' * vibration interval (secs): ' + vibratorOnIntervalSecs);
 log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
 
-        
+
 log.log('----------------------------------------------');
-        
+
 // eof
