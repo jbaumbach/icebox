@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/06/2014 JB
+  Edited: 9/11/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -264,29 +264,28 @@ function getDate() {
 function button1Change(e) {
   var buttonPressedDuration = (e.time - e.lastTime);
   log.log('button1Change: duration=' + buttonPressedDuration + ', now=' + e.state);
-  
-  if (monitorInterval) {
-    //
-    // Turn off
-    //
-    stopMonitoring();
-    log.log('button click: stop monitoring');
+
+  var validClick = false;
+  //
+  // Turn on
+  //
+  if (buttonPressedDuration < 1.0) {
+    validClick = true;
+  } else if (buttonPressedDuration < 5.0) {
+    validClick = true;
+    testMode = true;
   } else {
-    var validClick = false;
-    //
-    // Turn on
-    //
-    if (buttonPressedDuration < 1.0) {
-      validClick = true;
-    } else if (buttonPressedDuration < 5.0) {
-      validClick = true;
-      testMode = true;
+    log.log('ignoring inexplicably long button press duration');
+  }
+
+  if (validClick) {
+    if (monitorInterval) {
+      //
+      // Turn off
+      //
+      stopMonitoring();
+      log.log('button click: stop monitoring');
     } else {
-      log.log('ignoring inexplicably long button press duration');
-    }
-    
-    if (validClick) {
-      testMode = (buttonPressedDuration > 1.0);
       startMonitoring();
       log.log('button click: start monitoring');
       if (testMode) {
@@ -298,6 +297,7 @@ function button1Change(e) {
     }
   }
 }
+
 
 // Turn the heater on or off (depending on the value of isOn)
 // Also turns the red LED on and off as an indicator
@@ -396,7 +396,3 @@ log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
 log.log('----------------------------------------------');
         
 // eof
------------');
-        
-// eof
-f
