@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.13';
+var programVersion = '0.3.14';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
