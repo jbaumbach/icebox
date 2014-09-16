@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/11/2014 JB
+  Edited: 9/15/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.16';
+var programVersion = '0.3.21';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
@@ -53,6 +53,8 @@ var testMode;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = -5.0;
 var testModeExternalTemperature = testModeTemperature;
+
+var shouldOutputToConsole = (process.env.CONSOLE === 'USB');
 
 //
 // Requires
@@ -160,13 +162,30 @@ var Log = function() {
 Log.prototype.log = function(msg) {
   // todo: figure out how to convert an object to a string, like node's util.inspect()
   var logStr = getDate().toString() + ': ' + msg + '\n';
-  console.log(logStr);
+  if (shouldOutputToConsole) {
+	console.log(logStr);
+  }
   fs.appendFile(this.logFileName, logStr);
 };
 
 Log.prototype.clear = function() {
   fs.unlink(this.logFileName);
   return 'ok';
+};
+
+Log.prototype.show = function(options) {
+  // todo: handle the fact that both print() and the data has \r 
+  var chunkSize = 1024;
+  var f = E.openFile(this.logFileName, 'r');
+  var d;
+  do {
+    d = f.read(chunkSize);
+    if (d) {
+      print(d.toString());
+    }
+  }
+  while (d);
+  f.close();
 };
 
 
@@ -320,8 +339,31 @@ function clearAll() {
 //
 
 var serverInputBuffer = '';
-var request = Serial1;
-var response = Serial1;
+var request; // = Serial1;
+var response; // = Serial1;
+
+function startNanoServer() {
+  if (request) {
+    log.log('crap!  we already have request assigned.');
+  }
+  request = Serial1;
+  response = Serial1;
+  var consoleIsOn = process.env.CONSOLE;
+  if (consoleIsOn === 'USB') {
+    log.log('Console on USB, setting nanoServer to Serial1');
+    USB.setConsole();
+  } else if (consoleIsOn === 'Serial1') {
+    log.log('Console on Serial1, setting it to Serial2');
+    Serial2.setConsole();
+  } else {
+    log.log('Console on ' + consoleIsOn + ', not sure what to do');
+  }
+
+  //
+  // Set up Bluetooth listener
+  //
+  request.on('data', nanoServer);
+}
 
 var routes = {};
 
@@ -329,7 +371,7 @@ function nanoServer(data) {
   var eol = 'x';  // '\r';
   serverInputBuffer+=data;
   var idx = serverInputBuffer.indexOf(eol);
-  while (idx >= 0) { 
+  while (idx >= 0) {
     var line = serverInputBuffer.substr(0,idx);
     serverInputBuffer = serverInputBuffer.substr(idx+1);
     nanoRouter(line);
@@ -376,13 +418,27 @@ routes.temps = {
   }
 };
 
+routes.status = {
+  get: function(params) {
+    var result = {
+      programVersion: programVersion,
+      heaterIsOn: !!heaterIsOn,
+      isMonitoring: !!monitorInterval,
+      clockIsSet: !!clockStatus.set,
+      currentTime: getDate().toString()
+    };
+    nanoRespond('200', JSON.stringify(result));
+  }
+};
+
+// todo: figure out why this crashes WebIDE when plugged in
 routes.button = {
   post: function(params) {
     if (params == 'short') {
-      button1Change({ time:1, lastTime: 0 });
+      button1Change({ time:1, lastTime: 0, state: 'artificalShort' });
       nanoRespond('200', JSON.stringify({msg:'ok'}));
     } else if (params == 'long') {
-      button1Change({ time:6, lastTime: 0 });
+      button1Change({ time:6, lastTime: 0, state: 'artificalLong' });
       nanoRespond('200', JSON.stringify({msg:'ok'}));
     } else {
       nanoRespond('422', JSON.stringify({msg:'should be "short" or "long"'}));
@@ -396,7 +452,10 @@ routes.button = {
 // Stuff to do on power up
 //
 function onInit() {
-  log.log('onInit() running');
+
+  shouldOutputToConsole = (process.env.CONSOLE === 'USB');
+
+  log.log('onInit() running, output to console: ' + !!shouldOutputToConsole);
 
   //
   // Main button turns it on and off
@@ -418,6 +477,11 @@ function onInit() {
   setTimeout("digitalWrite([LED1,LED2,LED3],0b010);", 1000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0b001);", 2000);
   setTimeout("digitalWrite([LED1,LED2,LED3],0);", 3000);
+
+  //
+  // Turn on Bluetooth listener.
+  //
+  startNanoServer();
 }
 
 
@@ -461,12 +525,6 @@ clearAll();
 sensor.getTemp();
 sensorExternal.getTemp();
 
-//
-// Set up Bluetooth listener
-//
-request.on('data', nanoServer);
-
-
 log.log('\n\n');
 log.log('----------------------------------------------');
 log.log('Starting up, version: ' + programVersion);
@@ -477,7 +535,7 @@ log.log(' * hysteresis tolerance (celcius): ' + hysteresisTolerance);
 log.log(' * vibration power (0.0 - 1.0): ' + vibratorPower);
 log.log(' * vibration interval (secs): ' + vibratorOnIntervalSecs);
 log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
-
+log.log(' * CONSOLE: ' + process.env.CONSOLE);
 
 log.log('----------------------------------------------');
 
