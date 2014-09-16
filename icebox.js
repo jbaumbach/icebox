@@ -174,18 +174,33 @@ Log.prototype.clear = function() {
 };
 
 Log.prototype.show = function(options) {
+//  log.log('got options: ' + options);
+//  log.log('got page: ' + options.page);
   // todo: handle the fact that both print() and the data has \r 
-  var chunkSize = 1024;
+  options = options || {};
+  var chunkSize = options.chunkSize || 1024;
+  var page = options.page;
+//  var outputTo = options.outputTo || console;
   var f = E.openFile(this.logFileName, 'r');
-  var d;
-  do {
-    d = f.read(chunkSize);
-    if (d) {
-      print(d.toString());
+  var result;
+  if (page === undefined) {
+    var d;
+    do {
+      d = f.read(chunkSize);
+      if (d) {
+        print(d.toString());
+      }
+    }
+    while (d);
+  } else {
+    f.skip(page * chunkSize);
+    result = f.read(chunkSize);
+    if (result) {
+      result = result.toString();
     }
   }
-  while (d);
   f.close();
+  return result;
 };
 
 
@@ -395,7 +410,18 @@ function nanoRouter(line) {
       var verb = meta[verbItem];
       var func = routes[resource][verb];
       if (func) {
-        func(meta.length > 2 ? meta[dataItem] : null);
+        var params = meta.length > 2 ? meta[dataItem] : null;
+        if (params) {
+          try {
+            //log.log('about to parse: ' + params);
+            params = JSON.parse(params);
+            //log.log('parsed ok!');
+          } catch (e) {
+            // huh, not JSON
+            //log.log('crap, no parsie: ' + e);
+          }
+        }
+        func(params);
       } else {
         nanoRespond('404', 'resource ' + resource + ' has no action ' + verb);
       }
@@ -435,10 +461,10 @@ routes.status = {
 routes.button = {
   post: function(params) {
     if (params == 'short') {
-      button1Change({ time:1, lastTime: 0, state: 'artificalShort' });
+      button1Change({ time: 0.5, lastTime: 0, state: 'artificalShort' });
       nanoRespond('200', JSON.stringify({msg:'ok'}));
     } else if (params == 'long') {
-      button1Change({ time:6, lastTime: 0, state: 'artificalLong' });
+      button1Change({ time: 3.5, lastTime: 0, state: 'artificalLong' });
       nanoRespond('200', JSON.stringify({msg:'ok'}));
     } else {
       nanoRespond('422', JSON.stringify({msg:'should be "short" or "long"'}));
@@ -446,7 +472,13 @@ routes.button = {
   }
 };
 
-
+routes.log = {
+  get: function(params) {
+    var result = log.show(params);
+    log.log('got result: ' + result);
+    nanoRespond('200', JSON.stringify({ params: params, data: result }));
+  }
+};
 
 //
 // Stuff to do on power up
