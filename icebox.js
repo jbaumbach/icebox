@@ -189,7 +189,10 @@ Log.prototype.show = function(options) {
     }
     while (d);
   } else {
-    f.skip(page * chunkSize);
+    var s = page * chunkSize;
+    if (s > 0) {
+      f.skip();
+    }
     result = f.read(chunkSize);
     if (result) {
       result = result.toString();
@@ -370,9 +373,11 @@ var NanoServer = function() {
     }
   };
 
-  self.nanoRespond = function(code, msg) {
+  self.nanoRespond = function(code, msg, options) {
     var result = code + ' ' + msg;
-    log.log(result);
+    if (!options || !options.nolog) {
+      log.log(result);
+    }
     self.response.println(result);
   };
 
@@ -516,8 +521,7 @@ function configRoutes(server) {
   routes.log = {
     get: function(params) {
       var result = log.show(params);
-      log.log('got result: ' + result);
-      server.nanoRespond('200', JSON.stringify({ params: params, data: result }));
+      server.nanoRespond('200', JSON.stringify({ params: params, data: result }), { nolog: true});
     }
   };
 
@@ -609,7 +613,7 @@ var clockStatus = {
 };
 var heaterIsOn = false;
 var server = new NanoServer();
-//Serial1.setup(230400);  // BLE module is always on Serial1.  I think the BLE baud rate has to be set first.
+Serial1.setup(230400);  // BLE module is always on Serial1.  I think the BLE baud rate has to be set first.
 
 //
 // Fresh log file
