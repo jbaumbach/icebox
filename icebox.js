@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/15/2014 JB
+  Edited: 9/16/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.21';
+var programVersion = '0.3.22';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
@@ -53,8 +53,6 @@ var testMode;
 var testModeIncrements = hysteresisTolerance / 3;
 var testModeTemperature = -5.0;
 var testModeExternalTemperature = testModeTemperature;
-
-var shouldOutputToConsole = (process.env.CONSOLE === 'USB');
 
 //
 // Requires
@@ -162,9 +160,7 @@ var Log = function() {
 Log.prototype.log = function(msg) {
   // todo: figure out how to convert an object to a string, like node's util.inspect()
   var logStr = getDate().toString() + ': ' + msg + '\n';
-  if (shouldOutputToConsole) {
-	console.log(logStr);
-  }
+  console.log(logStr);
   fs.appendFile(this.logFileName, logStr);
 };
 
@@ -354,8 +350,8 @@ function clearAll() {
 //
 
 var serverInputBuffer = '';
-var request; // = Serial1;
-var response; // = Serial1;
+var request = Serial1;
+var response = Serial1;
 
 function startNanoServer() {
   if (request) {
@@ -365,11 +361,10 @@ function startNanoServer() {
   response = Serial1;
   var consoleIsOn = process.env.CONSOLE;
   if (consoleIsOn === 'USB') {
-    log.log('Console on USB, setting nanoServer to Serial1');
-    USB.setConsole();
+    log.log('Console on USB, normal startup');
   } else if (consoleIsOn === 'Serial1') {
-    log.log('Console on Serial1, setting it to Serial2');
-    Serial2.setConsole();
+    log.log('Console on Serial1, moving it to LoopbackA');
+    LoopbackA.setConsole();
   } else {
     log.log('Console on ' + consoleIsOn + ', not sure what to do');
   }
@@ -484,8 +479,6 @@ routes.log = {
 // Stuff to do on power up
 //
 function onInit() {
-
-  shouldOutputToConsole = (process.env.CONSOLE === 'USB');
 
   log.log('onInit() running, output to console: ' + !!shouldOutputToConsole);
 
