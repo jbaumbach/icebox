@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/16/2014 JB
+  Edited: 9/17/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.22';
+var programVersion = '0.3.23';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
@@ -356,7 +356,7 @@ var NanoServer = function() {
   self.request = Serial1;
   self.response = Serial1;
   self.routes = {};
-  self.currentResponder = undefined;
+  self.responder = undefined;
 
   self.nanoServer = function(data) {
     var eol = 'x';  // '\r';
@@ -368,9 +368,6 @@ var NanoServer = function() {
       nanoRouter(line);
       idx = self.serverInputBuffer.indexOf(eol);
     }
-  };
-
-  self.setResponder = function(fn) {
   };
 
   self.nanoRespond = function(code, msg) {
@@ -411,12 +408,16 @@ var NanoServer = function() {
       self.nanoRespond('422', 'cannot process line: ' + line);
     }
   }
+
+  self.setResponder = function(fn) {
+    self.responder = fn;
+    self.request.on('data', fn);
+  };
+
 };
 
 NanoServer.prototype.startNanoServer = function() {
   var self = this;
-  self.request = Serial1;
-  self.response = Serial1;
   var consoleIsOn = process.env.CONSOLE;
   if (consoleIsOn === 'USB') {
     log.log('Console on USB, normal startup');
@@ -430,7 +431,39 @@ NanoServer.prototype.startNanoServer = function() {
   //
   // Set up Bluetooth listener
   //
-  self.request.on('data', self.nanoServer);
+  self.setResponder(self.nanoServer);
+};
+
+NanoServer.prototype.executeQuery = function(options) {
+  // Note: may have to blip the command pin to break any existing connections
+  // prior to setting anything.
+  var self = this;
+  //console.log('checking...');
+  var buffer;
+  self.request.removeAllListeners('data');
+  self.request.on('data', function(data) {
+    buffer += data;
+  });
+
+  function doQuery(str, cb) {
+    buffer = '';
+    self.request.print(str);
+
+    setTimeout(function() {
+      //console.log('i guess we\'re done, returning: ' + buffer);
+      cb(buffer);
+    }, 500);
+  }
+
+  function done(response) {
+    self.request.removeAllListeners('data');
+    self.request.on('data', self.responder);
+    options.cb(response);
+  }
+
+  doQuery(options.str, function(response) {
+    done(response);
+  });
 };
 
 NanoServer.prototype.setRoutes = function(appRoutes) {
@@ -491,13 +524,29 @@ function configRoutes(server) {
   server.setRoutes(routes);
 }
 
+function configBLE(server) {
+  /*
+  So, I think this is how it works.
+
+  1. Set HM-10 baud rate: server.executeQuery("AT+BAUD8")   (see chart in docs)
+
+  2. Set Espruino port baud rate: Serial1.setup(230400)
+
+  It's possible things stop working at this point, try:
+    a. pressing reset button on Espruino
+    b. setting up baud rate back to 9600 and back.
+    c. pray
+
+  As of this writing, it looks like we're on 230400 successfully.
+  */
+}
 
 //
 // Stuff to do on power up
 //
 function onInit() {
 
-  log.log('onInit() running, output to console: ' + !!shouldOutputToConsole);
+  log.log('onInit() running');
 
   //
   // Main button turns it on and off
@@ -560,6 +609,7 @@ var clockStatus = {
 };
 var heaterIsOn = false;
 var server = new NanoServer();
+//Serial1.setup(230400);  // BLE module is always on Serial1.  I think the BLE baud rate has to be set first.
 
 //
 // Fresh log file
