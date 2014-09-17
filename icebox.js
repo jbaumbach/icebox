@@ -349,16 +349,74 @@ function clearAll() {
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
 
-var serverInputBuffer = '';
-var request = Serial1;
-var response = Serial1;
 
-function startNanoServer() {
-  if (request) {
-    log.log('crap!  we already have request assigned.');
+var NanoServer = function() {
+  var self = this;
+  self.serverInputBuffer = '';
+  self.request = Serial1;
+  self.response = Serial1;
+  self.routes = {};
+  self.currentResponder = undefined;
+
+  self.nanoServer = function(data) {
+    var eol = 'x';  // '\r';
+    self.serverInputBuffer+=data;
+    var idx = self.serverInputBuffer.indexOf(eol);
+    while (idx >= 0) {
+      var line = self.serverInputBuffer.substr(0,idx);
+      self.serverInputBuffer = self.serverInputBuffer.substr(idx+1);
+      nanoRouter(line);
+      idx = self.serverInputBuffer.indexOf(eol);
+    }
+  };
+
+  self.setResponder = function(fn) {
+  };
+
+  self.nanoRespond = function(code, msg) {
+    var result = code + ' ' + msg;
+    log.log(result);
+    self.response.println(result);
+  };
+
+  function nanoRouter(line) {
+    var verbItem = 0; var resourceItem = 1; var dataItem = 2;
+    var meta = line.split(' ');
+
+    if (meta && meta.length >= 2) {
+      var resource = meta[resourceItem];
+      if (self.routes[resource]) {
+        var verb = meta[verbItem];
+        var func = self.routes[resource][verb];
+        if (func) {
+          var params = meta.length > 2 ? meta[dataItem] : null;
+          if (params) {
+            try {
+              //log.log('about to parse: ' + params);
+              params = JSON.parse(params);
+              //log.log('parsed ok!');
+            } catch (e) {
+              // huh, not JSON
+              //log.log('crap, no parsie: ' + e);
+            }
+          }
+          func(params);
+        } else {
+          self.nanoRespond('404', 'resource ' + resource + ' has no action ' + verb);
+        }
+      } else {
+        self.nanoRespond('404', 'unknown resource: ' + resource);
+      }
+    } else {
+      self.nanoRespond('422', 'cannot process line: ' + line);
+    }
   }
-  request = Serial1;
-  response = Serial1;
+};
+
+NanoServer.prototype.startNanoServer = function() {
+  var self = this;
+  self.request = Serial1;
+  self.response = Serial1;
   var consoleIsOn = process.env.CONSOLE;
   if (consoleIsOn === 'USB') {
     log.log('Console on USB, normal startup');
@@ -372,108 +430,67 @@ function startNanoServer() {
   //
   // Set up Bluetooth listener
   //
-  request.on('data', nanoServer);
-}
+  self.request.on('data', self.nanoServer);
+};
 
-var routes = {};
+NanoServer.prototype.setRoutes = function(appRoutes) {
+  var self = this;
+  self.routes = appRoutes;
+  //console.log('set routes: ', self.routes);
+};
 
-function nanoServer(data) {
-  var eol = 'x';  // '\r';
-  serverInputBuffer+=data;
-  var idx = serverInputBuffer.indexOf(eol);
-  while (idx >= 0) {
-    var line = serverInputBuffer.substr(0,idx);
-    serverInputBuffer = serverInputBuffer.substr(idx+1);
-    nanoRouter(line);
-    idx = serverInputBuffer.indexOf(eol);
-  }
-}
+function configRoutes(server) {
+  var routes = {};
 
-function nanoRespond(code, msg) {
-  var result = code + ' ' + msg;
-  log.log(result);
-  response.println(result);
-}
+  routes.temps = {
+    get: function(params) {
+      var result = {
+        internal: sensor.getTemp(),
+        external: sensorExternal.getTemp()
+      };
+      server.nanoRespond('200', JSON.stringify(result));
+    }
+  };
 
-function nanoRouter(line) {
-  var verbItem = 0; var resourceItem = 1; var dataItem = 2;
-  var meta = line.split(' ');
+  routes.status = {
+    get: function(params) {
+      var result = {
+        programVersion: programVersion,
+        heaterIsOn: !!heaterIsOn,
+        isMonitoring: !!monitorInterval,
+        clockIsSet: !!clockStatus.set,
+        currentTime: getDate().toString()
+      };
+      server.nanoRespond('200', JSON.stringify(result));
+    }
+  };
 
-  if (meta && meta.length >= 2) {
-    var resource = meta[resourceItem];
-    if (routes[resource]) {
-      var verb = meta[verbItem];
-      var func = routes[resource][verb];
-      if (func) {
-        var params = meta.length > 2 ? meta[dataItem] : null;
-        if (params) {
-          try {
-            //log.log('about to parse: ' + params);
-            params = JSON.parse(params);
-            //log.log('parsed ok!');
-          } catch (e) {
-            // huh, not JSON
-            //log.log('crap, no parsie: ' + e);
-          }
-        }
-        func(params);
+  // todo: figure out why calling this crashes the WebIDE when plugged in
+  routes.button = {
+    post: function(params) {
+      if (params == 'short') {
+        button1Change({ time: 0.5, lastTime: 0, state: 'artificalShort' });
+        server.nanoRespond('200', JSON.stringify({msg:'ok'}));
+      } else if (params == 'long') {
+        button1Change({ time: 3.5, lastTime: 0, state: 'artificalLong' });
+        server.nanoRespond('200', JSON.stringify({msg:'ok'}));
       } else {
-        nanoRespond('404', 'resource ' + resource + ' has no action ' + verb);
+        server.nanoRespond('422', JSON.stringify({msg:'should be "short" or "long"'}));
       }
-    } else {
-      nanoRespond('404', 'unknown resource: ' + resource);
     }
-  } else {
-    nanoRespond('422', 'cannot process line: ' + line);
-  }
+  };
+
+  routes.log = {
+    get: function(params) {
+      var result = log.show(params);
+      log.log('got result: ' + result);
+      server.nanoRespond('200', JSON.stringify({ params: params, data: result }));
+    }
+  };
+
+  server.setRoutes(routes);
 }
 
-
-routes.temps = {
-  get: function(params) {
-    var result = {
-      internal: sensor.getTemp(),
-      external: sensorExternal.getTemp()
-    };
-    nanoRespond('200', JSON.stringify(result));
-  }
-};
-
-routes.status = {
-  get: function(params) {
-    var result = {
-      programVersion: programVersion,
-      heaterIsOn: !!heaterIsOn,
-      isMonitoring: !!monitorInterval,
-      clockIsSet: !!clockStatus.set,
-      currentTime: getDate().toString()
-    };
-    nanoRespond('200', JSON.stringify(result));
-  }
-};
-
-// todo: figure out why this crashes WebIDE when plugged in
-routes.button = {
-  post: function(params) {
-    if (params == 'short') {
-      button1Change({ time: 0.5, lastTime: 0, state: 'artificalShort' });
-      nanoRespond('200', JSON.stringify({msg:'ok'}));
-    } else if (params == 'long') {
-      button1Change({ time: 3.5, lastTime: 0, state: 'artificalLong' });
-      nanoRespond('200', JSON.stringify({msg:'ok'}));
-    } else {
-      nanoRespond('422', JSON.stringify({msg:'should be "short" or "long"'}));
-    }
-  }
-};
-
-routes.log = {
-  get: function(params) {
-    var result = log.show(params);
-    log.log('got result: ' + result);
-    nanoRespond('200', JSON.stringify({ params: params, data: result }));
-  }
-};
 
 //
 // Stuff to do on power up
@@ -506,7 +523,9 @@ function onInit() {
   //
   // Turn on Bluetooth listener.
   //
-  startNanoServer();
+  //startNanoServer();
+  server.startNanoServer();
+  configRoutes(server);
 }
 
 
@@ -540,6 +559,7 @@ var clockStatus = {
   warned: false
 };
 var heaterIsOn = false;
+var server = new NanoServer();
 
 //
 // Fresh log file
