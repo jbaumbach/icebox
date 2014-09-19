@@ -81,47 +81,6 @@ Pin.prototype.blip = function() {
   }, 500);
 };
 
-// LED1.slowBlink()
-
-Pin.prototype.slowBlink = function(times) {
-  times = times || 1;
-  var Hz = 50;        // don't change this
-  var changeHz = 50;  // increase to make light smoother
-  var blinkDurationSecs = 2;
-
-  var self = this;
-  var angle = (Math.PI * 1.5);
-  var loop = 0;
-  var changeStep = (Math.PI * blinkDurationSecs) / (changeHz * 2);  // should do full rotation in time period
-  var totalRange = times * (changeHz * blinkDurationSecs);
-  var brightness, pulseInterval;
-
-  function pwm() {
-    var pulseTime = brightness * (1000/Hz);
-    if (pulseTime > 0) {
-      digitalPulse(self, 1, pulseTime);
-    }
-    pulseInterval = setTimeout(pwm, 1000/Hz);
-  }
-
-  function setLightLevel() {
-    brightness = Math.abs((1 + Math.sin(angle)) / 2);
-    if (loop < totalRange) {
-      if ((typeof pulseInterval) === "undefined") {
-        pwm();
-      }
-
-      angle += changeStep;
-      loop++;
-      setTimeout(setLightLevel, 1000 / changeHz);
-    } else {
-      clearTimeout(pulseInterval);
-      self.reset();
-    }
-  }
-
-  setLightLevel();
-};
 
 Pin.prototype.setOnForPeriod = function(power, durationSecs) {
   var interval;
@@ -540,109 +499,6 @@ function configRoutes(server) {
   server.setRoutes(routes);
 }
 
-function configBLE(serial, done) {
-  /*
-  So, I think this is how it works.
-
-  1. Set HM-10 baud rate: server.executeQuery("AT+BAUD8")   (see chart in docs)
-
-  2. Set Espruino port baud rate: Serial1.setup(230400)
-
-  It's possible things stop working at this point, try:
-    a. pressing reset button on Espruino
-    b. setting up baud rate back to 9600 and back.
-    c. pray
-
-  As of this writing, it looks like we're on 230400 successfully.
-  */
-
-  var buffer;
-  var debug = true;
-
-  serial.removeAllListeners('data');
-  serial.on('data', function(data) {
-    buffer += data;
-  });
-
-
-  function doQuery(str, cb) {
-    buffer = '';
-    serial.print(str);
-
-    // wait for response.  it would be nice to know when it was done.
-    setTimeout(function() {
-      //console.log('i guess we\'re done, returning: ' + buffer);
-      cb(buffer);
-    }, 500);
-  }
-
-  var result = {
-    baud: undefined,
-    name: undefined
-  };
-
-  var name = 'Freezer';
-  var config = {
-    baud: {
-      query: 'AT+BAUD?',
-      success: 'OK+Get:8',
-      setCommand: 'OK+Set:8'
-    },
-    name: {
-      query: 'AT+NAME?',
-      success: 'OK+NAME' + name,
-      setCommand: 'AT+NAME' + name
-    }
-  };
-
-  series([
-    function getBaud1(cb) {
-      // Try talking to it at the default speed 9600
-      serial.setup(9600);
-      doQuery(config.baud.query, function(response) {
-        //log.log('getBaud1 response: ' + response);
-        result.baud = response;
-        cb();
-      });
-    },
-    function getBaud2(cb) {
-      if (!result.baud) {
-        // we have no response, let's try 230400
-        serial.setup(230400);
-        doQuery(config.baud.query, function(response) {
-          //log.log('getBaud2 response: ' + response);
-          result.baud = response;
-          cb();
-        });
-      } else {
-        cb();
-      }
-    },
-    function setBaudIfNecessary(cb) {
-      if (result.baud) {
-        if (result.baud != config.baud.success) {
-          doQuery(config.baud.setCommand, function(response) {
-            //log.log('setBaud response: ' + response);
-            cb();
-          });
-        } else {
-          cb();
-        }
-      } else {
-        cb('crud, can\'t communicate!');
-      }
-    }
-  ], function(err) {
-    serial.removeAllListeners('data');
-    if (err) {
-      console.log('error!  ' + err);
-    } else {
-      console.log('completed, no errors: ' + JSON.stringify(result));
-    }
-    done(err, result);
-  });
-}
-
 //
 // Stuff to do on power up
 //
@@ -679,18 +535,6 @@ function onInit() {
   configRoutes(server);
 }
 
-
-
-//
-// Usually takes about 4 seconds, not too bad
-//
-function perfTest() {
-  for (var i = 0; i < 10000; i++) {
-    if (i % 1000 === 0) {
-      console.log(i);
-    }
-  }
-}
 
 //
 // Main program
@@ -733,7 +577,6 @@ log.log(' * vibration power (0.0 - 1.0): ' + vibratorPower);
 log.log(' * vibration interval (secs): ' + vibratorOnIntervalSecs);
 log.log(' * vibration duration (secs): ' + vibratorOnDurationSecs);
 log.log(' * CONSOLE: ' + process.env.CONSOLE);
-
 log.log('----------------------------------------------');
 
 // eof
