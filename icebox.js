@@ -1,7 +1,7 @@
 /*
   Ice Box - Espruino
   
-  Edited: 9/17/2014 JB
+  Edited: 9/18/2014 JB
   
   Todo: Open source this guy with GPL
 
@@ -26,7 +26,7 @@
 //
 // Program global vars/constants
 //
-var programVersion = '0.3.23';
+var programVersion = '0.3.24';
 var readTempAndSaveMonitorIntervalSecs = 5;
 var minTempDifferentialExternalInternal = 5.5;   // degrees celcius
 var hysteresisTolerance = 0.75;                  // degrees celcius
@@ -202,7 +202,19 @@ Log.prototype.show = function(options) {
   return result;
 };
 
-
+//
+// Poor man's async.series
+//
+function series(arr,done) {
+  var i=0;
+  function next(err, result) {
+    if (((err!==undefined) && (err!==null)) || i>=arr.length)
+      done(err, result);
+    else
+      setTimeout(function() {arr[i++](next);}, 0);
+  }
+  next();
+}
 
 //
 // Monitoring
@@ -528,7 +540,7 @@ function configRoutes(server) {
   server.setRoutes(routes);
 }
 
-function configBLE(server) {
+function configBLE(serial, done) {
   /*
   So, I think this is how it works.
 
@@ -543,6 +555,92 @@ function configBLE(server) {
 
   As of this writing, it looks like we're on 230400 successfully.
   */
+
+  var buffer;
+  var debug = true;
+
+  serial.removeAllListeners('data');
+  serial.on('data', function(data) {
+    buffer += data;
+  });
+
+
+  function doQuery(str, cb) {
+    buffer = '';
+    serial.print(str);
+
+    // wait for response.  it would be nice to know when it was done.
+    setTimeout(function() {
+      //console.log('i guess we\'re done, returning: ' + buffer);
+      cb(buffer);
+    }, 500);
+  }
+
+  var result = {
+    baud: undefined,
+    name: undefined
+  };
+
+  var name = 'Freezer';
+  var config = {
+    baud: {
+      query: 'AT+BAUD?',
+      success: 'OK+Get:8',
+      setCommand: 'OK+Set:8'
+    },
+    name: {
+      query: 'AT+NAME?',
+      success: 'OK+NAME' + name,
+      setCommand: 'AT+NAME' + name
+    }
+  };
+
+  series([
+    function getBaud1(cb) {
+      // Try talking to it at the default speed 9600
+      serial.setup(9600);
+      doQuery(config.baud.query, function(response) {
+        //log.log('getBaud1 response: ' + response);
+        result.baud = response;
+        cb();
+      });
+    },
+    function getBaud2(cb) {
+      if (!result.baud) {
+        // we have no response, let's try 230400
+        serial.setup(230400);
+        doQuery(config.baud.query, function(response) {
+          //log.log('getBaud2 response: ' + response);
+          result.baud = response;
+          cb();
+        });
+      } else {
+        cb();
+      }
+    },
+    function setBaudIfNecessary(cb) {
+      if (result.baud) {
+        if (result.baud != config.baud.success) {
+          doQuery(config.baud.setCommand, function(response) {
+            //log.log('setBaud response: ' + response);
+            cb();
+          });
+        } else {
+          cb();
+        }
+      } else {
+        cb('crud, can\'t communicate!');
+      }
+    }
+  ], function(err) {
+    serial.removeAllListeners('data');
+    if (err) {
+      console.log('error!  ' + err);
+    } else {
+      console.log('completed, no errors: ' + JSON.stringify(result));
+    }
+    done(err, result);
+  });
 }
 
 //
