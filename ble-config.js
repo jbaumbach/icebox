@@ -83,7 +83,7 @@ function configBLE(serial, done) {
     },
     name: {
       query: 'AT+NAME?',
-      want: 'OK+NAME' + desiredBleName,
+      want: 'OK+NAME:Freezer',
       setCommand: 'AT+NAME' + desiredBleName,
       setSuccess: 'OK+Set:' + desiredBleName
     }
@@ -114,7 +114,7 @@ function configBLE(serial, done) {
     },
     function setBaudIfNecessary(cb) {
       if (result.baud) {
-        if (result.baud != config.baud.success) {
+        if (result.baud != config.baud.want) {
           doQuery(config.baud.setCommand, function(response) {
             console.log('setBaud response: ' + response);
             if (response == config.baud.setSuccess) {
@@ -124,6 +124,7 @@ function configBLE(serial, done) {
             }
           });
         } else {
+          console.log('baud rate ok');
           cb();
         }
       } else {
@@ -136,6 +137,23 @@ function configBLE(serial, done) {
         result.name = response;
         cb();
       });
+    },
+    function setName(cb) {
+      if (result.name !== config.name.want) {
+        // Note: this is always inexplicably different
+        console.log(result.name + ' - ' + config.name.want);
+        doQuery(config.name.setCommand, function(response) {
+          console.log('setName response: ' + response);
+          if (response == config.name.setSuccess) {
+            result.name = response;
+            cb();
+          } else {
+            cb('can\'t set name');
+          }
+        });
+      } else {
+        console.log('name set ok');
+      }
     }
   ], function(err) {
     serial.removeAllListeners('data');
@@ -144,7 +162,10 @@ function configBLE(serial, done) {
     } else {
       console.log('completed, no errors: ' + JSON.stringify(result));
     }
+    console.log('Power down and restart the Espruino for any changes to take effect');
     done(err, result);
   });
+  
+  return 'Starting process...';
 }
 
