@@ -25,6 +25,10 @@ Here's what the last version of the ice cooler box looked like:
 <img src="Screenshots/espruino-motor.jpg" alt="Oustide top showing Espruino" width="320" />
 <img src="Screenshots/heater-temp-probes.jpg" alt="Underside showing header and temperature probes" width="320" />
 
+Here's the best of the ice cubes it made.  You can see that it froze directionally upward mostly ok, but still froze at the top before all the gas could escape.  Also, the vibrator wasn't very effective at shaking off the air bubbles that condensed on the inside of the ice cube tray - they made streaks in the ice.  It looks kinda cool, but not perfectly clear!
+
+<img src="Screenshots/best-cube.jpg" alt="Oustide top showing Espruino" width="420" />
+
 
 License
 -------
