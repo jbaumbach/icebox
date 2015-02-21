@@ -10,7 +10,7 @@ Posted here in case someone has a use for it.
 
 Notable features:
 
-* Tracks temperature from two censors.
+* Tracks temperature from two sensors.
 * Turns on the heater using a given hysteresis value
 * Bluetooth LE connectivity to your iPhone (iPhone app not included here)
 * BLE communication via REST-like calls
